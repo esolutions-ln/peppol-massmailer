@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PEPPOL Registration Invitation</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .wrapper { width: 100%; background-color: #f4f4f7; padding: 40px 0; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: #1e3a5f; color: #ffffff; padding: 24px 32px; text-align: center; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+        .header p { margin: 8px 0 0 0; font-size: 14px; opacity: 0.85; }
+        .body { padding: 32px; color: #333333; line-height: 1.7; font-size: 15px; }
+        .info-box { background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 16px 20px; margin: 24px 0; }
+        .info-box p { margin: 0; font-size: 14px; color: #1e40af; }
+        .info-box strong { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #1d4ed8; margin-bottom: 4px; }
+        .cta-section { text-align: center; margin: 32px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 14px 36px; border-radius: 6px; font-weight: 600; font-size: 15px; }
+        .expiry-notice { background-color: #fefce8; border: 1px solid #fde68a; border-radius: 6px; padding: 12px 16px; margin: 20px 0; font-size: 13px; color: #92400e; }
+        .link-fallback { word-break: break-all; font-size: 12px; color: #64748b; margin-top: 8px; }
+        .footer { background-color: #f8fafc; padding: 20px 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+        .footer p { margin: 4px 0; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="container">
+
+        <!-- Header -->
+        <div class="header">
+            <h1>PEPPOL Registration Invitation</h1>
+            <p>You have been invited to join the PEPPOL network</p>
+        </div>
+
+        <!-- Body -->
+        <div class="body">
+            <p>Dear Customer,</p>
+            <p>
+                <strong th:text="${orgName}">Your Supplier</strong> has invited you to register on the
+                PEPPOL network so that you can receive invoices directly into your ERP system — no manual
+                processing required.
+            </p>
+
+            <!-- Invitation context -->
+            <div class="info-box">
+                <strong>Invitation sent to</strong>
+                <p th:text="${customerEmail}">customer@example.com</p>
+            </div>
+
+            <!-- CTA -->
+            <div class="cta-section">
+                <a th:href="${inviteUrl}" class="cta-button">Complete PEPPOL Registration</a>
+                <p class="link-fallback">
+                    Or copy this link into your browser:<br/>
+                    <span th:text="${inviteUrl}">https://example.com/invite/peppol/token</span>
+                </p>
+            </div>
+
+            <!-- Expiry notice -->
+            <div class="expiry-notice">
+                ⏰ This invitation link expires on <strong th:text="${expiresAt}">expiry time</strong>.
+                Please complete your registration before then.
+            </div>
+
+            <p style="font-size: 13px; color: #64748b;">
+                If you did not expect this invitation or believe it was sent in error, you may safely
+                ignore this email. No action is required on your part.
+            </p>
+
+            <p>
+                Best regards,<br/>
+                <strong>The InvoiceDirect Team</strong>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>This is an automated message. Please do not reply.</p>
+            <p>&copy; <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}">2026</span> InvoiceDirect. All rights reserved.</p>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

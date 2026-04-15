@@ -1,0 +1,11 @@
+.git
+.gitignore
+.DS_Store
+*.md
+frontend/
+target/
+*.log
+.env
+.kiro/
+.vscode/
+google-oauth-credentials.json

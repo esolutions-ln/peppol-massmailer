@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PEPPOL Registration Complete</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .wrapper { width: 100%; background-color: #f4f4f7; padding: 40px 0; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: #166534; color: #ffffff; padding: 24px 32px; text-align: center; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+        .header p { margin: 8px 0 0 0; font-size: 14px; opacity: 0.85; }
+        .body { padding: 32px; color: #333333; line-height: 1.7; font-size: 15px; }
+        .success-badge { text-align: center; margin: 0 0 24px 0; }
+        .success-badge span { display: inline-block; background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; border-radius: 20px; padding: 6px 18px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+        .details-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .details-table th { text-align: left; padding: 10px 12px; background-color: #f1f5f9; color: #475569; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
+        .details-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .details-table .label { color: #64748b; font-weight: 500; width: 40%; }
+        .details-table .value { color: #1e293b; font-weight: 600; font-family: 'Courier New', monospace; }
+        .info-box { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 16px 20px; margin: 24px 0; }
+        .info-box p { margin: 0; font-size: 14px; color: #166534; }
+        .footer { background-color: #f8fafc; padding: 20px 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+        .footer p { margin: 4px 0; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="container">
+
+        <!-- Header -->
+        <div class="header">
+            <h1>PEPPOL Registration Complete</h1>
+            <p>Your customer has successfully joined the PEPPOL network</p>
+        </div>
+
+        <!-- Body -->
+        <div class="body">
+
+            <div class="success-badge">
+                <span>✓ Registration Successful</span>
+            </div>
+
+            <p>
+                Good news — your customer has completed their PEPPOL self-registration. You can now
+                deliver invoices directly to their ERP system via the PEPPOL network.
+            </p>
+
+            <!-- Registration details -->
+            <table class="details-table">
+                <tr>
+                    <th colspan="2">Registration Details</th>
+                </tr>
+                <tr>
+                    <td class="label">Customer Email</td>
+                    <td class="value" th:text="${customerEmail}">customer@example.com</td>
+                </tr>
+                <tr>
+                    <td class="label">Participant ID</td>
+                    <td class="value" th:text="${participantId}">0190:ZW123456789</td>
+                </tr>
+                <tr>
+                    <td class="label">Endpoint URL</td>
+                    <td class="value" th:text="${endpointUrl}">https://erp.example.com/peppol/as4</td>
+                </tr>
+                <tr>
+                    <td class="label">Completed At</td>
+                    <td class="value" th:text="${completedAt}">2026-01-01T12:00:00Z</td>
+                </tr>
+            </table>
+
+            <div class="info-box">
+                <p>
+                    Invoices sent to <strong th:text="${customerEmail}">customer@example.com</strong>
+                    will now be delivered via PEPPOL to their registered endpoint.
+                </p>
+            </div>
+
+            <p>
+                Best regards,<br/>
+                <strong>The InvoiceDirect Team</strong>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>This is an automated message. Please do not reply.</p>
+            <p>&copy; <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}">2026</span> InvoiceDirect. All rights reserved.</p>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

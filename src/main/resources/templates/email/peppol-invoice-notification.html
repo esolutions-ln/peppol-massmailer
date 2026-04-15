@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Invoice Received via eSolutions Access Point</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .wrapper { width: 100%; background-color: #f4f4f7; padding: 40px 0; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        /* Header */
+        .header { background-color: #1e3a5f; color: #ffffff; padding: 24px 32px; }
+        .header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+        .header .badge { background-color: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; float: right; margin-top: -26px; }
+
+        /* Body */
+        .body { padding: 32px; color: #333333; line-height: 1.6; font-size: 14px; }
+        .body h2 { color: #1e3a5f; margin-top: 0; font-size: 18px; }
+
+        /* Invoice summary table */
+        .invoice-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .invoice-table th { text-align: left; padding: 10px 12px; background-color: #f1f5f9; color: #475569; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
+        .invoice-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .invoice-table .label { color: #64748b; font-weight: 500; }
+        .invoice-table .value { text-align: right; color: #1e293b; font-weight: 600; }
+        .invoice-table .amount-row td { font-weight: 700; font-size: 16px; border-top: 2px solid #1e3a5f; background-color: #f8fafc; }
+
+        /* Info box */
+        .info-box { background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 16px 20px; margin: 20px 0; }
+        .info-box h3 { margin: 0 0 8px 0; font-size: 14px; color: #1e40af; }
+        .info-box p { margin: 0; font-size: 13px; color: #1e40af; line-height: 1.5; }
+
+        /* Steps */
+        .steps { margin: 20px 0; }
+        .step { display: flex; align-items: flex-start; margin-bottom: 12px; }
+        .step-num { background-color: #1e3a5f; color: #ffffff; border-radius: 50%; width: 24px; height: 24px; min-width: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; margin-right: 12px; margin-top: 2px; }
+        .step-text { font-size: 13px; color: #374151; line-height: 1.5; }
+
+        /* Attachment notice */
+        .attachment-notice { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 14px 20px; margin: 20px 0; }
+        .attachment-notice strong { display: block; color: #166534; font-size: 14px; margin-bottom: 4px; }
+        .attachment-notice p { margin: 0; font-size: 13px; color: #4b5563; }
+
+        /* Footer */
+        .footer { background-color: #f8fafc; padding: 20px 32px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+        .footer p { margin: 4px 0; }
+        .peppol-badge { display: inline-block; background-color: #e2e8f0; border-radius: 4px; padding: 3px 8px; font-size: 10px; color: #475569; font-weight: 600; letter-spacing: 0.5px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="container">
+
+        <!-- ═══ Header ═══ -->
+        <div class="header">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                    <td>
+                        <h1>eSolutions Access Point</h1>
+                    </td>
+                    <td align="right">
+                        <span style="background-color: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">
+                            INVOICE RECEIVED
+                        </span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- ═══ Body ═══ -->
+        <div class="body">
+
+            <h2>You have received an invoice</h2>
+
+            <p th:if="${recipientName}">
+                Dear <strong th:text="${recipientName}">Customer</strong>,
+            </p>
+            <p>
+                <strong th:text="${supplierName ?: 'A supplier'}">Supplier</strong>
+                has sent you an invoice via the
+                <strong>eSolutions PEPPOL Access Point</strong>.
+                The invoice details are summarised below and the PDF is attached.
+            </p>
+
+            <!-- ─── Invoice Summary ─── -->
+            <table class="invoice-table">
+                <tr>
+                    <th colspan="2">Invoice Summary</th>
+                </tr>
+                <tr>
+                    <td class="label">Invoice Number</td>
+                    <td class="value" th:text="${invoiceNumber}">INV-0000</td>
+                </tr>
+                <tr th:if="${invoiceDate}">
+                    <td class="label">Invoice Date</td>
+                    <td class="value" th:text="${invoiceDate}">2026-01-01</td>
+                </tr>
+                <tr th:if="${totalAmount}">
+                    <td class="label">Sender</td>
+                    <td class="value" th:text="${supplierName}">—</td>
+                </tr>
+                <tr th:if="${supplierEmail}">
+                    <td class="label">Sender Contact</td>
+                    <td class="value">
+                        <a th:href="'mailto:' + ${supplierEmail}" th:text="${supplierEmail}">supplier@example.com</a>
+                    </td>
+                </tr>
+                <tr class="amount-row" th:if="${totalAmount}">
+                    <td class="label">Total Due</td>
+                    <td class="value">
+                        <span th:text="${currency}">USD</span>
+                        <span th:text="${totalAmount}">0.00</span>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- ─── Attachment notice ─── -->
+            <div class="attachment-notice">
+                <strong>&#x1F4CE; Invoice PDF Attached</strong>
+                <p>
+                    The full invoice is attached to this email as a PDF document.
+                    Please download and import it into your accounting system.
+                </p>
+            </div>
+
+            <!-- ─── Info: register in PEPPOL network ─── -->
+            <div class="info-box">
+                <h3>Receive future invoices directly into your ERP</h3>
+                <p>
+                    Your organisation is not yet registered in the eSolutions PEPPOL network.
+                    By registering, future invoices from this and other suppliers will be
+                    delivered electronically in PEPPOL BIS 3.0 format — directly into your
+                    accounting or ERP system, with no email processing required.
+                </p>
+            </div>
+
+            <!-- ─── How to register ─── -->
+            <p style="font-weight: 600; color: #1e3a5f; margin-bottom: 8px;">How to get started:</p>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                    <td width="32" valign="top" style="padding-top: 2px;">
+                        <span style="display:inline-block; background-color:#1e3a5f; color:#fff; border-radius:50%; width:22px; height:22px; text-align:center; line-height:22px; font-size:12px; font-weight:700;">1</span>
+                    </td>
+                    <td style="padding-bottom: 10px; font-size: 13px; color: #374151;">
+                        Contact <a th:href="'mailto:' + ${supplierEmail}" th:text="${supplierEmail}">supplier@example.com</a> or the eSolutions support team to express your interest.
+                    </td>
+                </tr>
+                <tr>
+                    <td width="32" valign="top" style="padding-top: 2px;">
+                        <span style="display:inline-block; background-color:#1e3a5f; color:#fff; border-radius:50%; width:22px; height:22px; text-align:center; line-height:22px; font-size:12px; font-weight:700;">2</span>
+                    </td>
+                    <td style="padding-bottom: 10px; font-size: 13px; color: #374151;">
+                        Provide your PEPPOL participant ID (or your Zimbabwe VAT/TIN number to auto-derive one) and your Access Point endpoint URL.
+                    </td>
+                </tr>
+                <tr>
+                    <td width="32" valign="top" style="padding-top: 2px;">
+                        <span style="display:inline-block; background-color:#1e3a5f; color:#fff; border-radius:50%; width:22px; height:22px; text-align:center; line-height:22px; font-size:12px; font-weight:700;">3</span>
+                    </td>
+                    <td style="padding-bottom: 10px; font-size: 13px; color: #374151;">
+                        Once registered, invoices will be delivered to your system automatically in PEPPOL BIS Billing 3.0 UBL format.
+                    </td>
+                </tr>
+            </table>
+
+            <p style="margin-top: 24px; color: #64748b; font-size: 13px;">
+                Questions about this invoice? Contact
+                <a th:href="'mailto:' + ${supplierEmail ?: 'support@esolutions.co.zw'}"
+                   th:text="${supplierEmail ?: 'support@esolutions.co.zw'}">support@esolutions.co.zw</a>.
+            </p>
+        </div>
+
+        <!-- ═══ Footer ═══ -->
+        <div class="footer">
+            <p>This is an automated notification from the eSolutions PEPPOL Access Point gateway.</p>
+            <p>Please do not reply to this email — use the sender contact above for invoice queries.</p>
+            <br/>
+            <span class="peppol-badge">PEPPOL BIS Billing 3.0</span>
+            <span class="peppol-badge" style="margin-left: 4px;">EN 16931 : 2017</span>
+            <br/><br/>
+            <p style="font-size: 10px; color: #cbd5e1;">
+                Delivered via eSolutions InvoiceDirect &mdash; Zimbabwe PEPPOL Access Point.
+                Invoices are fiscalised in compliance with ZIMRA regulations.
+            </p>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

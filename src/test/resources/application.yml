@@ -1,0 +1,51 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+  mail:
+    host: localhost
+    port: 3025
+    username: ""
+    password: ""
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+            required: false
+
+google:
+  oauth2:
+    credentials-path: ""
+    refresh-token: ""
+
+app:
+  base-url: http://localhost:5173
+
+massmailer:
+  from-address: noreply@test.com
+  from-name: Test Mailer
+  rate-limit: 5
+  batch-size: 10
+  max-retries: 1
+  retry-backoff: 100
+  fiscal-validation-enabled: false
+  registration-rate-limit: 1000
+
+logging:
+  level:
+    com.esolutions.massmailer: WARN
+    org.springframework: WARN
+
+admin:
+  username: testadmin
+  password: testpassword123
+  token-expiry-hours: 8

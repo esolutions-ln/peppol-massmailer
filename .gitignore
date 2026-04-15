@@ -1,0 +1,19 @@
+# Maven
+target/
+*.class
+
+# Environment variables
+.env
+
+# Credentials — never commit these
+google-oauth-credentials.json
+service-account-key.json
+*.key.json
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Logs
+*.log

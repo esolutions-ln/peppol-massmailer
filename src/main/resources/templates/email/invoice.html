@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="'Invoice ' + ${invoiceNumber}">Invoice</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .wrapper { width: 100%; background-color: #f4f4f7; padding: 40px 0; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        /* Header */
+        .header { background-color: #1e3a5f; color: #ffffff; padding: 24px 32px; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+        .header .invoice-badge { background-color: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 4px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+
+        /* Body */
+        .body { padding: 32px; color: #333333; line-height: 1.6; font-size: 14px; }
+        .body h2 { color: #1e3a5f; margin-top: 0; font-size: 18px; }
+
+        /* Invoice summary table */
+        .invoice-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .invoice-table th { text-align: left; padding: 10px 12px; background-color: #f1f5f9; color: #475569; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
+        .invoice-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .invoice-table .amount-row td { font-weight: 700; font-size: 16px; border-top: 2px solid #1e3a5f; background-color: #f8fafc; }
+        .invoice-table .label { color: #64748b; font-weight: 500; }
+        .invoice-table .value { text-align: right; color: #1e293b; font-weight: 600; }
+
+        /* Fiscal box */
+        .fiscal-box { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 16px 20px; margin: 20px 0; }
+        .fiscal-box h3 { margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; color: #166534; letter-spacing: 0.5px; }
+        .fiscal-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+        .fiscal-label { color: #4b5563; }
+        .fiscal-value { color: #1e293b; font-weight: 600; font-family: 'Courier New', monospace; }
+
+        /* QR Code */
+        .qr-section { text-align: center; margin: 16px 0 8px 0; }
+        .qr-section img { width: 120px; height: 120px; border: 1px solid #e2e8f0; border-radius: 4px; }
+        .qr-caption { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+
+        /* Attachment notice */
+        .attachment-notice { background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 14px 20px; margin: 20px 0; display: flex; align-items: center; gap: 12px; }
+        .attachment-icon { font-size: 24px; }
+        .attachment-text { font-size: 13px; color: #1e40af; }
+        .attachment-text strong { display: block; font-size: 14px; }
+
+        /* Footer */
+        .footer { background-color: #f8fafc; padding: 20px 32px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+        .footer p { margin: 4px 0; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="container">
+
+        <!-- ═══ Header ═══ -->
+        <div class="header">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                    <td>
+                        <h1 th:text="${companyName ?: 'eSolutions'}">eSolutions</h1>
+                    </td>
+                    <td align="right">
+                        <span class="invoice-badge">FISCALISED INVOICE</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- ═══ Body ═══ -->
+        <div class="body">
+
+            <h2>Invoice
+                <span th:text="${invoiceNumber}">INV-0000</span>
+            </h2>
+
+            <p th:if="${recipientName}">
+                Dear <strong th:text="${recipientName}">Customer</strong>,
+            </p>
+            <p>
+                Please find attached your fiscalised invoice. A summary of the invoice details is provided below.
+            </p>
+
+            <!-- ─── Invoice Summary Table ─── -->
+            <table class="invoice-table">
+                <tr>
+                    <th colspan="2">Invoice Details</th>
+                </tr>
+                <tr>
+                    <td class="label">Invoice Number</td>
+                    <td class="value" th:text="${invoiceNumber}">INV-0000</td>
+                </tr>
+                <tr th:if="${invoiceDate}">
+                    <td class="label">Invoice Date</td>
+                    <td class="value" th:text="${invoiceDate}">2026-01-01</td>
+                </tr>
+                <tr th:if="${dueDate}">
+                    <td class="label">Due Date</td>
+                    <td class="value" th:text="${dueDate}">2026-02-01</td>
+                </tr>
+                <tr th:if="${currency}">
+                    <td class="label">Currency</td>
+                    <td class="value" th:text="${currency}">USD</td>
+                </tr>
+                <tr th:if="${vatAmount}">
+                    <td class="label">VAT Amount</td>
+                    <td class="value">
+                        <!--/* Show symbol if known (ZWG→ZiG, USD→$), else show code */-->
+                        <span th:text="${currencySymbol ?: currency}"></span>
+                        <span th:text="${vatAmount}">0.00</span>
+                    </td>
+                </tr>
+                <tr class="amount-row" th:if="${totalAmount}">
+                    <td class="label">Total Due</td>
+                    <td class="value">
+                        <span th:text="${currencySymbol ?: currency}"></span>
+                        <span th:text="${totalAmount}">0.00</span>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- ─── Fiscal Device Details (ZIMRA compliance) ─── -->
+            <div class="fiscal-box"
+                 th:if="${fiscalDeviceSerialNumber != null or verificationCode != null or globalInvoiceCounter != null}">
+                <h3>Fiscal Verification</h3>
+
+                <div class="fiscal-row" th:if="${fiscalDeviceSerialNumber}">
+                    <span class="fiscal-label">Device Serial No.</span>
+                    <span class="fiscal-value" th:text="${fiscalDeviceSerialNumber}">—</span>
+                </div>
+                <div class="fiscal-row" th:if="${fiscalDayNumber}">
+                    <span class="fiscal-label">Fiscal Day No.</span>
+                    <span class="fiscal-value" th:text="${fiscalDayNumber}">—</span>
+                </div>
+                <div class="fiscal-row" th:if="${globalInvoiceCounter}">
+                    <span class="fiscal-label">Global Invoice Counter</span>
+                    <span class="fiscal-value" th:text="${globalInvoiceCounter}">—</span>
+                </div>
+                <div class="fiscal-row" th:if="${verificationCode}">
+                    <span class="fiscal-label">Verification Code</span>
+                    <span class="fiscal-value" th:text="${verificationCode}">—</span>
+                </div>
+
+                <!-- QR Code for fiscal verification -->
+                <div class="qr-section" th:if="${qrCodeUrl}">
+                    <img th:src="${qrCodeUrl}" alt="Fiscal Verification QR Code"/>
+                    <p class="qr-caption">Scan to verify this invoice with ZIMRA</p>
+                </div>
+            </div>
+
+            <!-- ─── Attachment Notice ─── -->
+            <div class="attachment-notice">
+                <span class="attachment-icon">📎</span>
+                <div class="attachment-text">
+                    <strong th:text="${invoiceNumber + '.pdf'}">INV-0000.pdf</strong>
+                    The full fiscalised invoice is attached to this email as a PDF document.
+                    Please download and retain it for your records.
+                </div>
+            </div>
+
+            <!-- ─── Optional payment instructions ─── -->
+            <div th:if="${paymentInstructions}" style="margin-top: 20px;">
+                <p th:utext="${paymentInstructions}">Payment instructions here.</p>
+            </div>
+
+            <p style="margin-top: 24px; color: #64748b; font-size: 13px;">
+                If you have any questions regarding this invoice, please contact our accounts department at
+                <a th:href="'mailto:' + ${accountsEmail ?: 'accounts@yourdomain.com'}"
+                   th:text="${accountsEmail ?: 'accounts@yourdomain.com'}">accounts@yourdomain.com</a>.
+            </p>
+        </div>
+
+        <!-- ═══ Footer ═══ -->
+        <div class="footer">
+            <p>This is an automated message sent from a no-reply address. Please do not reply to this email.</p>
+            <p th:if="${companyAddress}" th:text="${companyAddress}">Company Address</p>
+            <p>
+                &copy; <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}">2026</span>
+                <span th:text="${companyName ?: 'eSolutions'}">eSolutions</span>. All rights reserved.
+            </p>
+            <p style="margin-top: 8px; font-size: 10px; color: #cbd5e1;">
+                This invoice has been fiscalised in accordance with Zimbabwe Revenue Authority (ZIMRA) regulations.
+            </p>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

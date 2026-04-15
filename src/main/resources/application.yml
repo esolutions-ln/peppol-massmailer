@@ -1,0 +1,165 @@
+server:
+  port: ${SERVER_PORT:9199}
+
+app:
+  base-url: ${APP_BASE_URL:https://ap.invoicedirect.biz}
+
+spring:
+  application:
+    name: mass-mailer-service
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+
+  threads:
+    virtual:
+      enabled: true
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: no-reply@esolutions.co.zw
+    # Password is not used — OAuth2 XOAUTH2 token is injected at send time
+    properties:
+      mail:
+        smtp:
+          auth: true
+          auth.mechanisms: XOAUTH2
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+        from: no-reply@esolutions.co.zw
+    test-connection: false
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/massmailer}
+    username: ${DB_USER:mailer}
+    password: ${DB_PASS:mailer_secret}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    cache: true
+
+google:
+  service-account:
+    key-path: ${GOOGLE_SERVICE_ACCOUNT_KEY_PATH:}
+  oauth2:
+    credentials-path: ${GOOGLE_OAUTH2_CREDENTIALS_PATH:google-oauth-credentials.json}
+    # Obtain this refresh token by completing the OAuth2 consent flow once:
+    # https://developers.google.com/oauthplayground — scope: https://mail.google.com/
+    refresh-token: ${GOOGLE_OAUTH2_REFRESH_TOKEN:}
+
+massmailer:
+  from-address: no-reply@esolutions.co.zw
+  from-name: ${MAIL_FROM_NAME:eSolutions}
+  rate-limit: ${RATE_LIMIT:10}
+  batch-size: ${BATCH_SIZE:50}
+  max-retries: 3
+  retry-backoff: 2000
+  fiscal-validation-enabled: true
+  gmail-oauth2:
+    enabled: true
+  pdf-watcher:
+    # Set PDF_WATCHER_ENABLED=true and configure inbox-directory to activate.
+    # Each PDF in the inbox must have a companion {invoiceNumber}.json sidecar.
+    enabled: ${PDF_WATCHER_ENABLED:false}
+    inbox-directory: ${PDF_WATCHER_INBOX:/var/lib/invoicedirect/inbox}
+    default-organization-id: ${PDF_WATCHER_ORG_ID:}
+
+admin:
+  username: ${ADMIN_USERNAME:admin}
+  password: ${ADMIN_PASSWORD:changeme}
+  token-expiry-hours: ${ADMIN_TOKEN_EXPIRY_HOURS:8}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  health:
+    mail:
+      enabled: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: method
+    try-it-out-enabled: true
+    display-request-duration: true
+    deep-linking: true
+    default-models-expand-depth: 3
+    default-model-expand-depth: 3
+  paths-to-match:
+    - /api/**
+    - /peppol/**
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
+logging:
+  level:
+    com.esolutions.massmailer: DEBUG
+    org.springframework.mail: DEBUG
+
+erp:
+  sage:
+    base-url: ${SAGE_BASE_URL:}
+    sender-id: ${SAGE_SENDER_ID:}
+    sender-password: ${SAGE_SENDER_PASSWORD:}
+    company-id: ${SAGE_COMPANY_ID:}
+    user-id: ${SAGE_USER_ID:}
+    user-password: ${SAGE_USER_PASSWORD:}
+    # Sage Network e-Invoice API (for PEPPOL delivery status)
+    network-base-url: ${SAGE_NETWORK_BASE_URL:}
+    network-api-key: ${SAGE_NETWORK_API_KEY:}
+    timeout-seconds: 30
+
+  quickbooks:
+    base-url: ${QB_BASE_URL:https://quickbooks.api.intuit.com/v3}
+    client-id: ${QB_CLIENT_ID:}
+    client-secret: ${QB_CLIENT_SECRET:}
+    realm-id: ${QB_REALM_ID:}
+    refresh-token: ${QB_REFRESH_TOKEN:}
+    timeout-seconds: 30
+
+  dynamics365:
+    base-url: ${D365_BASE_URL:}
+    tenant-id: ${D365_TENANT_ID:}
+    client-id: ${D365_CLIENT_ID:}
+    client-secret: ${D365_CLIENT_SECRET:}
+    timeout-seconds: 30
+
+  # ── Odoo (JSON-RPC / REST API) ──
+  # Supports Odoo 14+ with API key authentication.
+  # Set base-url to activate the adapter.
+  # For Odoo.com SaaS: base-url = https://{your-db}.odoo.com
+  # For self-hosted:   base-url = https://erp.yourcompany.com
+  odoo:
+    base-url: ${ODOO_BASE_URL:}
+    database: ${ODOO_DATABASE:}
+    username: ${ODOO_USERNAME:}
+    api-key: ${ODOO_API_KEY:}
+    timeout-seconds: 30

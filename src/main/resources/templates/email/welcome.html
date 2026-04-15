@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Welcome</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .wrapper { width: 100%; background-color: #f4f4f7; padding: 40px 0; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .hero { background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); color: #ffffff; padding: 48px 32px; text-align: center; }
+        .hero h1 { margin: 0 0 8px 0; font-size: 28px; }
+        .hero p { margin: 0; font-size: 16px; opacity: 0.9; }
+        .body { padding: 32px; color: #333333; line-height: 1.7; font-size: 15px; }
+        .feature-list { list-style: none; padding: 0; margin: 24px 0; }
+        .feature-list li { padding: 8px 0 8px 28px; position: relative; }
+        .feature-list li::before { content: "✓"; position: absolute; left: 0; color: #2563eb; font-weight: bold; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; margin: 16px 0; }
+        .footer { background-color: #f8fafc; padding: 20px 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="container">
+
+        <!-- Hero -->
+        <div class="hero">
+            <h1>Welcome to <span th:text="${companyName ?: 'eSolutions'}">eSolutions</span>!</h1>
+            <p th:text="${tagline ?: 'We are thrilled to have you on board.'}">We are thrilled to have you on board.</p>
+        </div>
+
+        <!-- Body -->
+        <div class="body">
+            <p>
+                Hi <strong th:text="${recipientName ?: 'there'}">there</strong>,
+            </p>
+            <p th:utext="${welcomeMessage ?: 'Thank you for joining us. Here is what you can look forward to:'}">
+                Thank you for joining us.
+            </p>
+
+            <!-- Dynamic feature list -->
+            <ul class="feature-list" th:if="${features}">
+                <li th:each="feature : ${features}" th:text="${feature}">Feature item</li>
+            </ul>
+
+            <!-- Fallback static list -->
+            <ul class="feature-list" th:unless="${features}">
+                <li>Access to our full platform</li>
+                <li>Dedicated support team</li>
+                <li>Regular product updates</li>
+            </ul>
+
+            <!-- CTA -->
+            <div style="text-align: center; margin: 32px 0;">
+                <a th:href="${ctaUrl ?: '#'}" th:text="${ctaLabel ?: 'Get Started'}" class="cta-button">Get Started</a>
+            </div>
+
+            <p>
+                If you have questions, feel free to reach our support team at
+                <a th:href="'mailto:' + ${supportEmail ?: 'support@yourdomain.com'}"
+                   th:text="${supportEmail ?: 'support@yourdomain.com'}">support@yourdomain.com</a>.
+            </p>
+
+            <p>
+                Best regards,<br/>
+                <strong th:text="${senderName ?: 'The eSolutions Team'}">The eSolutions Team</strong>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>This is an automated message. Please do not reply.</p>
+            <p th:if="${unsubscribeUrl}">
+                <a th:href="${unsubscribeUrl}" style="color: #64748b;">Unsubscribe</a>
+            </p>
+            <p>&copy; <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}">2026</span>
+                <span th:text="${companyName ?: 'eSolutions'}">eSolutions</span>
+            </p>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

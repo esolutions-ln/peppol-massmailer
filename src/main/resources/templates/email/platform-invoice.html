@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>InvoiceDirect — Platform Invoice</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f4f6f9; font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; }
+    .wrapper { max-width: 640px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .header { background: #1a1a2e; padding: 28px 36px; }
+    .header h1 { margin: 0; color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+    .header p { margin: 4px 0 0; color: #94a3b8; font-size: 13px; }
+    .badge { display: inline-block; background: #3b82f6; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: 1px; padding: 3px 10px; border-radius: 3px; text-transform: uppercase; }
+    .body { padding: 32px 36px; }
+    .greeting { font-size: 15px; margin-bottom: 20px; color: #374151; }
+    .invoice-meta { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px 20px; margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 12px; }
+    .meta-item { flex: 1; min-width: 130px; }
+    .meta-label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 3px; }
+    .meta-value { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+    table.breakdown { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    table.breakdown th { text-align: left; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .6px; padding: 0 0 8px; border-bottom: 2px solid #e2e8f0; }
+    table.breakdown td { padding: 10px 0; font-size: 14px; color: #374151; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    table.breakdown td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.breakdown tr.subtotal td { color: #6b7280; font-size: 13px; }
+    table.breakdown tr.total td { font-weight: 700; font-size: 16px; color: #1a1a2e; border-bottom: none; padding-top: 14px; }
+    .total-box { background: #1a1a2e; color: #fff; border-radius: 6px; padding: 16px 20px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }
+    .total-box .label { font-size: 13px; color: #94a3b8; }
+    .total-box .amount { font-size: 26px; font-weight: 700; }
+    .usage-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+    .usage-card { flex: 1; min-width: 110px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; text-align: center; }
+    .usage-card .count { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+    .usage-card .count.delivered { color: #16a34a; }
+    .usage-card .count.failed { color: #dc2626; }
+    .usage-card .count.skipped { color: #d97706; }
+    .usage-card .label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+    .notice { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 12px 16px; font-size: 13px; color: #92400e; margin-top: 24px; }
+    .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 36px; font-size: 12px; color: #94a3b8; text-align: center; }
+    .footer a { color: #3b82f6; text-decoration: none; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <p style="margin:0 0 8px"><span class="badge">Platform Invoice</span></p>
+    <h1>InvoiceDirect</h1>
+    <p th:text="'Invoice for ' + ${billingPeriodLabel}">Invoice for March 2026</p>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+
+    <p class="greeting">
+      Dear <span th:text="${orgName}">Acme Holdings</span> team,
+    </p>
+    <p class="greeting" style="margin-top:-10px">
+      Please find below your InvoiceDirect usage invoice for
+      <strong th:text="${billingPeriodLabel}">March 2026</strong>.
+      Payment is due within <strong th:text="${paymentDueDays + ' days'}">30 days</strong>
+      of this invoice date.
+    </p>
+
+    <!-- Invoice meta row -->
+    <div class="invoice-meta">
+      <div class="meta-item">
+        <div class="meta-label">Invoice Number</div>
+        <div class="meta-value" th:text="${platformInvoiceNumber}">PI-2026-03-0001</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Invoice Date</div>
+        <div class="meta-value" th:text="${invoiceDate}">1 April 2026</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Due Date</div>
+        <div class="meta-value" th:text="${dueDate}">30 April 2026</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Rate Profile</div>
+        <div class="meta-value" th:text="${rateProfileName ?: 'Standard'}">Standard</div>
+      </div>
+    </div>
+
+    <!-- Usage summary cards -->
+    <div class="usage-grid">
+      <div class="usage-card">
+        <div class="count" th:text="${totalSubmitted}">450</div>
+        <div class="label">Submitted</div>
+      </div>
+      <div class="usage-card">
+        <div class="count delivered" th:text="${deliveredCount}">448</div>
+        <div class="label">Delivered</div>
+      </div>
+      <div class="usage-card">
+        <div class="count failed" th:text="${failedCount}">2</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="usage-card">
+        <div class="count skipped" th:text="${skippedCount}">0</div>
+        <div class="label">Skipped</div>
+      </div>
+      <div class="usage-card">
+        <div class="count" th:text="${billableCount}">450</div>
+        <div class="label">Billable</div>
+      </div>
+    </div>
+
+    <!-- Charge breakdown table -->
+    <table class="breakdown">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="num">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="subtotal">
+          <td>Monthly base fee</td>
+          <td class="num" th:text="${currency + ' ' + #numbers.formatDecimal(baseFee, 1, 2)}">USD 25.00</td>
+        </tr>
+        <tr class="subtotal">
+          <td>
+            Usage charges
+            <span style="color:#94a3b8;font-size:12px"
+                  th:text="'(' + ${billableCount} + ' billable invoices)'">
+              (450 billable invoices)
+            </span>
+          </td>
+          <td class="num" th:text="${currency + ' ' + #numbers.formatDecimal(usageCharges, 1, 2)}">USD 45.00</td>
+        </tr>
+        <tr class="total">
+          <td>Total Due</td>
+          <td class="num" th:text="${currency + ' ' + #numbers.formatDecimal(totalAmount, 1, 2)}">USD 70.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Total highlight box -->
+    <div class="total-box">
+      <div>
+        <div class="label">Total Amount Due</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px"
+             th:text="'Due by ' + ${dueDate}">Due by 30 April 2026</div>
+      </div>
+      <div class="amount"
+           th:text="${currency + ' ' + #numbers.formatDecimal(totalAmount, 1, 2)}">
+        USD 70.00
+      </div>
+    </div>
+
+    <!-- Payment notice -->
+    <div class="notice">
+      <strong>Payment Instructions:</strong>
+      <span th:utext="${paymentInstructions}">
+        Please remit payment to our accounts team at accounts@invoicedirect.biz,
+        quoting the invoice number above.
+      </span>
+    </div>
+
+    <p style="font-size:13px;color:#6b7280;margin-top:24px">
+      If you have questions about this invoice, please contact us at
+      <a th:href="'mailto:' + ${supportEmail}"
+         th:text="${supportEmail}"
+         style="color:#3b82f6">accounts@invoicedirect.biz</a>.
+    </p>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p style="margin:0 0 4px">
+      This is an automated billing invoice from
+      <strong>InvoiceDirect</strong> — please do not reply to this email.
+    </p>
+    <p style="margin:0">
+      &copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span>
+      eSolutions (Pvt) Ltd &nbsp;|&nbsp;
+      <a th:href="'mailto:' + ${supportEmail}">Contact Billing</a>
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

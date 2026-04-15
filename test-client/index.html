@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mass Mailer — Test Client</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0b1120; color: #e2e8f0; min-height: 100vh;
+      display: flex; justify-content: center; padding: 40px 20px;
+    }
+    .container { max-width: 720px; width: 100%; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    h1 span { color: #3b82f6; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+    .card {
+      background: #111827; border: 1px solid #1e293b; border-radius: 12px;
+      padding: 28px; margin-bottom: 20px;
+    }
+    .card-title { font-size: 14px; font-weight: 600; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #cbd5e1; margin-bottom: 6px; }
+    .form-group small { display: block; color: #475569; font-size: 12px; margin-top: 4px; }
+    input, select, textarea {
+      width: 100%; padding: 10px 12px; background: #0f172a; border: 1px solid #334155;
+      border-radius: 8px; color: #e2e8f0; font-size: 14px; outline: none; transition: border 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #3b82f6; }
+    textarea { resize: vertical; min-height: 80px; font-family: monospace; font-size: 13px; }
+    .drop-zone {
+      border: 2px dashed #334155; border-radius: 8px; padding: 28px; text-align: center;
+      cursor: pointer; transition: all 0.2s; background: #0f172a;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background: #0f1d3a; }
+    .drop-zone.has-file { border-color: #22c55e; background: #0f2a1a; }
+    .drop-zone .icon { font-size: 28px; margin-bottom: 8px; }
+    .drop-zone .filename { color: #4ade80; font-weight: 600; }
+    .drop-zone .hint { color: #64748b; font-size: 13px; }
+    .drop-zone .size { color: #94a3b8; font-size: 12px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px;
+      border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #2563eb; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #1e293b; color: #cbd5e1; }
+    .btn-secondary:hover { background: #334155; }
+    .actions { display: flex; gap: 12px; margin-top: 8px; }
+    .alert {
+      padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;
+      font-size: 14px; line-height: 1.5;
+    }
+    .alert-success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+    .alert-error { background: #2a0a0a; border: 1px solid #7f1d1d; color: #f87171; }
+    .alert strong { display: block; margin-bottom: 4px; }
+    .alert code { font-size: 12px; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; }
+    .spinner {
+      display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .log { margin-top: 12px; }
+    .log-entry {
+      padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 13px;
+      border-left: 3px solid #334155; background: #0f172a;
+    }
+    .log-entry.success { border-left-color: #22c55e; }
+    .log-entry.fail { border-left-color: #ef4444; }
+    .log-entry .ts { color: #475569; font-size: 11px; font-family: monospace; }
+    .separator { border: none; border-top: 1px solid #1e293b; margin: 24px 0; }
+    .toggle-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .toggle-row label { font-size: 13px; color: #94a3b8; margin: 0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #052e16; color: #4ade80; }
+    .badge-red { background: #2a0a0a; color: #f87171; }
+    .badge-yellow { background: #2a2000; color: #facc15; }
+    @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Invoice<span>Direct</span> Test Client</h1>
+    <p class="subtitle">Standalone client for testing the invoice delivery API</p>
+
+    <!-- Connection -->
+    <div class="card">
+      <div class="card-title">API Connection</div>
+      <div class="row">
+        <div class="form-group">
+          <label>API Base URL</label>
+          <select id="baseUrl" onchange="if(this.value==='custom'){document.getElementById('customUrl').style.display='block'}else{document.getElementById('customUrl').style.display='none'}">
+            <option value="https://ap.invoicedirect.biz">Production — https://ap.invoicedirect.biz</option>
+            <option value="http://localhost:9199">Local Dev — http://localhost:9199</option>
+            <option value="custom">Custom...</option>
+          </select>
+          <input id="customUrl" style="display:none;margin-top:8px" placeholder="https://your-server.com" />
+          <small>Backend server address</small>
+        </div>
+        <div class="form-group">
+          <label>API Key *</label>
+          <input id="apiKey" type="password" placeholder="Your org or admin API key" />
+          <small>From org registration or admin login</small>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="testConnection()">Test Connection</button>
+        <span id="connStatus"></span>
+      </div>
+    </div>
+
+    <!-- Recipient & Sender -->
+    <div class="card">
+      <div class="card-title">Email Details</div>
+      <div class="row">
+        <div class="form-group">
+          <label>To Email *</label>
+          <input id="toEmail" type="email" placeholder="customer@example.com" />
+        </div>
+        <div class="form-group">
+          <label>Recipient Name</label>
+          <input id="recipientName" placeholder="Acme Corporation" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>From Name</label>
+          <input id="fromName" placeholder="Your Company Name" />
+          <small>Shown in email template. SMTP sender is configured server-side.</small>
+        </div>
+        <div class="form-group">
+          <label>Subject</label>
+          <input id="subject" placeholder="Auto-generated from invoice number" />
+        </div>
+      </div>
+    </div>
+
+    <!-- PDF Upload -->
+    <div class="card">
+      <div class="card-title">PDF Attachment</div>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('pdfInput').click()">
+        <input type="file" id="pdfInput" accept=".pdf,application/pdf" style="display:none" />
+        <div class="icon">&#128196;</div>
+        <div id="fileLabel" class="hint">Drop a PDF here or click to browse</div>
+      </div>
+    </div>
+
+    <!-- Invoice Details -->
+    <div class="card">
+      <div class="card-title">Invoice Details</div>
+      <div class="row">
+        <div class="form-group">
+          <label>Invoice Number *</label>
+          <input id="invoiceNumber" placeholder="INV-2026-0001" />
+        </div>
+        <div class="form-group">
+          <label>Currency</label>
+          <select id="currency">
+            <option value="USD">USD</option>
+            <option value="ZWG">ZWG</option>
+            <option value="ZAR">ZAR</option>
+            <option value="GBP">GBP</option>
+            <option value="EUR">EUR</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Invoice Date</label>
+          <input id="invoiceDate" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input id="dueDate" type="date" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Total Amount</label>
+          <input id="totalAmount" type="number" step="0.01" placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <label>VAT Amount</label>
+          <input id="vatAmount" type="number" step="0.01" placeholder="0.00" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Email Template</label>
+          <select id="templateName">
+            <option value="invoice">Invoice</option>
+            <option value="platform-invoice">Platform Invoice</option>
+            <option value="generic">Generic</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ZIMRA Fiscal Code</label>
+          <input id="verificationCode" placeholder="Optional - ABCD-EFGH-1234" />
+        </div>
+      </div>
+
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer; color:#64748b; font-size:13px">Advanced: Extra template variables (JSON)</summary>
+        <div class="form-group" style="margin-top:12px">
+          <textarea id="extraVars" placeholder='{"paymentInstructions": "<p>Bank: CBZ | Acc: 12345678</p>"}'></textarea>
+        </div>
+      </details>
+    </div>
+
+    <!-- Batch CSV -->
+    <div class="card">
+      <div class="card-title">Batch Mode (Optional)</div>
+      <p style="color:#64748b; font-size:13px; margin-bottom:12px">
+        Upload a CSV to send the same PDF to multiple recipients. CSV columns: <code>email, name, invoiceNumber</code>
+      </p>
+      <div class="row">
+        <div class="form-group">
+          <label>Recipients CSV</label>
+          <input type="file" id="csvInput" accept=".csv,text/csv" />
+        </div>
+      </div>
+      <div id="csvPreview" style="display:none; margin-top:8px"></div>
+    </div>
+
+    <!-- Send -->
+    <div class="card">
+      <div class="actions">
+        <button class="btn btn-primary" id="sendBtn" onclick="handleSend()">
+          &#9993; Send Invoice
+        </button>
+        <button class="btn btn-secondary" onclick="clearLog()">Clear Log</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script>
+    // --- State ---
+    let selectedPdf = null;
+    let csvRecipients = [];
+
+    // --- Init ---
+    document.getElementById('invoiceDate').value = new Date().toISOString().slice(0, 10);
+
+    // --- PDF drop zone ---
+    const dropZone = document.getElementById('dropZone');
+    const pdfInput = document.getElementById('pdfInput');
+    const fileLabel = document.getElementById('fileLabel');
+
+    pdfInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) setPdf(e.target.files[0]);
+    });
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'application/pdf') setPdf(file);
+      else alert('Please drop a PDF file.');
+    });
+
+    function setPdf(file) {
+      selectedPdf = file;
+      dropZone.classList.add('has-file');
+      fileLabel.innerHTML = `<span class="filename">${file.name}</span><br><span class="size">${(file.size / 1024).toFixed(1)} KB</span>`;
+    }
+
+    // --- CSV parsing ---
+    document.getElementById('csvInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) { csvRecipients = []; return; }
+      const text = await file.text();
+      const lines = text.trim().split('\n').filter(l => l.trim());
+      if (lines.length < 2) { csvRecipients = []; return; }
+
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const emailIdx = headers.indexOf('email');
+      const nameIdx = headers.indexOf('name');
+      const invIdx = headers.indexOf('invoicenumber');
+
+      if (emailIdx === -1) { alert('CSV must have an "email" column.'); csvRecipients = []; return; }
+
+      csvRecipients = lines.slice(1).map(line => {
+        const cols = line.split(',').map(c => c.trim());
+        return {
+          email: cols[emailIdx] || '',
+          name: cols[nameIdx] || '',
+          invoiceNumber: cols[invIdx] || '',
+        };
+      }).filter(r => r.email);
+
+      const preview = document.getElementById('csvPreview');
+      preview.style.display = 'block';
+      preview.innerHTML = `<span class="badge badge-green">${csvRecipients.length} recipients loaded</span>
+        <span style="color:#64748b;font-size:12px;margin-left:8px">${csvRecipients.slice(0, 3).map(r => r.email).join(', ')}${csvRecipients.length > 3 ? '...' : ''}</span>`;
+    });
+
+    // --- Connection test ---
+    async function testConnection() {
+      const status = document.getElementById('connStatus');
+      const baseUrl = val('baseUrl');
+      status.innerHTML = '<span class="spinner"></span>';
+      try {
+        const res = await fetch(`${baseUrl}/actuator/health`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) status.innerHTML = '<span class="badge badge-green">Connected</span>';
+        else status.innerHTML = '<span class="badge badge-yellow">HTTP ' + res.status + '</span>';
+      } catch {
+        status.innerHTML = '<span class="badge badge-red">Unreachable</span>';
+      }
+    }
+
+    // --- Send logic ---
+    async function handleSend() {
+      const baseUrl = val('baseUrl');
+      const apiKey = val('apiKey');
+      const toEmail = val('toEmail');
+      const invoiceNumber = val('invoiceNumber');
+
+      if (!apiKey) return alert('API Key is required.');
+      if (!selectedPdf) return alert('Please attach a PDF file.');
+
+      // Build recipient list: CSV batch or single
+      let recipients;
+      if (csvRecipients.length > 0) {
+        recipients = csvRecipients.map(r => ({
+          email: r.email,
+          name: r.name || val('recipientName'),
+          invoiceNumber: r.invoiceNumber || invoiceNumber,
+        }));
+      } else {
+        if (!toEmail) return alert('To Email is required.');
+        if (!invoiceNumber) return alert('Invoice Number is required.');
+        recipients = [{ email: toEmail, name: val('recipientName'), invoiceNumber }];
+      }
+
+      const btn = document.getElementById('sendBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Sending...';
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const recipient of recipients) {
+        try {
+          const result = await sendInvoice(baseUrl, apiKey, recipient);
+          successCount++;
+          appendLog('success',
+            `Delivered to <strong>${recipient.email}</strong> (${recipient.invoiceNumber})` +
+            (result.messageId ? ` — <code>${result.messageId}</code>` : ''));
+        } catch (err) {
+          failCount++;
+          appendLog('fail',
+            `Failed for <strong>${recipient.email}</strong> (${recipient.invoiceNumber}) — ${err.message}`);
+        }
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = '&#9993; Send Invoice';
+      appendLog(failCount === 0 ? 'success' : 'fail',
+        `Batch complete: ${successCount} delivered, ${failCount} failed out of ${recipients.length}`);
+    }
+
+    async function sendInvoice(baseUrl, apiKey, recipient) {
+      const metadata = {
+        to: recipient.email,
+        recipientName: recipient.name || undefined,
+        subject: val('subject') || `Invoice ${recipient.invoiceNumber}`,
+        templateName: val('templateName'),
+        invoiceNumber: recipient.invoiceNumber,
+        invoiceDate: val('invoiceDate') || undefined,
+        dueDate: val('dueDate') || undefined,
+        totalAmount: val('totalAmount') ? parseFloat(val('totalAmount')) : undefined,
+        vatAmount: val('vatAmount') ? parseFloat(val('vatAmount')) : undefined,
+        currency: val('currency'),
+        verificationCode: val('verificationCode') || undefined,
+        variables: {
+          companyName: val('fromName') || 'eSolutions',
+          ...(parseExtraVars()),
+        },
+      };
+
+      // Strip undefined
+      Object.keys(metadata).forEach(k => { if (metadata[k] === undefined) delete metadata[k]; });
+
+      const fd = new FormData();
+      fd.append('pdf', selectedPdf);
+      fd.append('metadata', JSON.stringify(metadata));
+
+      const res = await fetch(`${baseUrl}/api/v1/mail/invoice/upload`, {
+        method: 'POST',
+        headers: { 'X-API-Key': apiKey },
+        body: fd,
+      });
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(body.error || body.message || `HTTP ${res.status}`);
+      }
+      if (body.status === 'failed') {
+        throw new Error(body.error || 'Delivery failed');
+      }
+      return body;
+    }
+
+    // --- Helpers ---
+    function val(id) {
+      if (id === 'baseUrl') {
+        const sel = document.getElementById('baseUrl').value;
+        return sel === 'custom' ? document.getElementById('customUrl').value.trim() : sel;
+      }
+      return document.getElementById(id).value.trim();
+    }
+
+    function parseExtraVars() {
+      const raw = val('extraVars');
+      if (!raw) return {};
+      try { return JSON.parse(raw); }
+      catch { return {}; }
+    }
+
+    function appendLog(type, html) {
+      const log = document.getElementById('log');
+      const ts = new Date().toLocaleTimeString();
+      log.innerHTML = `<div class="log-entry ${type}"><span class="ts">${ts}</span> ${html}</div>` + log.innerHTML;
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+  </script>
+</body>
+</html>

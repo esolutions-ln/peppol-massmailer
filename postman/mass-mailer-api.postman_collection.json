@@ -1,0 +1,1041 @@
+{
+	"info": {
+		"name": "eSolutions Mass Mailer API",
+		"description": "Complete API collection for the eSolutions Fiscalised Invoice Mass Mailer.\n\n## Setup\n1. Set the `baseUrl` variable to your environment (default: http://localhost:8080)\n2. Register an organisation using the \"Register Organisation\" request\n3. Copy the `apiKey` from the response into the `apiKey` variable\n4. You're ready to send invoices!\n\n## Authentication\nMost endpoints require the `X-API-Key` header. This is automatically set from the `apiKey` collection variable.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "orgId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "campaignId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "apikey",
+		"apikey": [
+			{
+				"key": "key",
+				"value": "X-API-Key",
+				"type": "string"
+			},
+			{
+				"key": "value",
+				"value": "{{apiKey}}",
+				"type": "string"
+			},
+			{
+				"key": "in",
+				"value": "header",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Getting Started",
+			"description": "Start here. Register your organisation and send your first invoice.",
+			"item": [
+				{
+					"name": "1. Register Organisation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set('apiKey', json.apiKey);",
+									"    pm.collectionVariables.set('orgId', json.id);",
+									"    console.log('API Key saved (show only once): ' + json.apiKey);",
+									"    console.log('Org ID saved: ' + json.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user\": {\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"jobTitle\": \"Finance Manager\",\n    \"emailAddress\": \"john@yourcompany.co.zw\"\n  },\n  \"name\": \"Your Company\",\n  \"slug\": \"your-company\",\n  \"senderEmail\": \"invoices@yourcompany.co.zw\",\n  \"senderDisplayName\": \"Your Company Invoices\",\n  \"accountsEmail\": \"accounts@yourcompany.co.zw\",\n  \"companyAddress\": \"123 Samora Machel Ave, Harare\",\n  \"vatNumber\": \"12345678\",\n  \"deliveryMode\": \"EMAIL\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations"]
+						},
+						"description": "Register a new organisation. **Save the API key from the response -- it is shown only once.**\n\nRate limit: 10 per IP per hour."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Send Single Invoice (JSON)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"to\": \"customer@acmecorp.co.zw\",\n  \"recipientName\": \"Acme Corporation\",\n  \"subject\": \"Invoice INV-2026-0001 from Your Company\",\n  \"templateName\": \"invoice\",\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"invoiceDate\": \"2026-04-14\",\n  \"dueDate\": \"2026-05-14\",\n  \"totalAmount\": 1250.00,\n  \"vatAmount\": 187.50,\n  \"currency\": \"USD\",\n  \"fiscalDeviceSerialNumber\": \"FD-SN-12345\",\n  \"fiscalDayNumber\": \"42\",\n  \"globalInvoiceCounter\": \"0001234\",\n  \"verificationCode\": \"ABCD-EFGH-1234\",\n  \"qrCodeUrl\": \"https://fdms.zimra.co.zw/verify?code=ABCD-EFGH-1234\",\n  \"pdfBase64\": \"JVBERi0xLjQKMSAwIG9iago...\",\n  \"pdfFileName\": \"INV-2026-0001.pdf\",\n  \"variables\": {\n    \"companyName\": \"Your Company\",\n    \"accountsEmail\": \"accounts@yourcompany.co.zw\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/mail/invoice",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "mail", "invoice"]
+						},
+						"description": "Send a single invoice email synchronously. Returns the delivery result immediately.\n\nSupply either `pdfFilePath` OR `pdfBase64` (not both)."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Send Single Invoice (File Upload)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "pdf",
+									"type": "file",
+									"src": "",
+									"description": "The invoice PDF file"
+								},
+								{
+									"key": "metadata",
+									"value": "{\"to\":\"customer@acme.co.zw\",\"subject\":\"Your Invoice\",\"templateName\":\"invoice\",\"invoiceNumber\":\"INV-2026-0042\",\"totalAmount\":1250.00,\"currency\":\"USD\"}",
+									"type": "text",
+									"description": "Invoice metadata as JSON string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/mail/invoice/upload",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "mail", "invoice", "upload"]
+						},
+						"description": "Send a single invoice with the PDF uploaded as a multipart file.\n\nMax file size: 20 MB."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Campaigns",
+			"description": "Batch invoice dispatch -- create campaigns, monitor progress, retry failures.",
+			"item": [
+				{
+					"name": "Create Campaign",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 202) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set('campaignId', json.campaignId);",
+									"    console.log('Campaign ID saved: ' + json.campaignId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"March 2026 Invoices\",\n  \"subject\": \"Your Invoice from Your Company\",\n  \"templateName\": \"invoice\",\n  \"organizationId\": \"{{orgId}}\",\n  \"templateVariables\": {\n    \"companyName\": \"Your Company\",\n    \"accountsEmail\": \"accounts@yourcompany.co.zw\"\n  },\n  \"recipients\": [\n    {\n      \"email\": \"alice@acmecorp.co.zw\",\n      \"name\": \"Alice Moyo\",\n      \"invoiceNumber\": \"INV-2026-0100\",\n      \"invoiceDate\": \"2026-03-01\",\n      \"dueDate\": \"2026-03-31\",\n      \"totalAmount\": 2400.00,\n      \"vatAmount\": 360.00,\n      \"currency\": \"USD\",\n      \"fiscalDeviceSerialNumber\": \"FD-SN-12345\",\n      \"fiscalDayNumber\": \"60\",\n      \"globalInvoiceCounter\": \"10001\",\n      \"verificationCode\": \"AAAA-BBBB-1111\",\n      \"qrCodeUrl\": \"https://fdms.zimra.co.zw/verify?code=AAAA-BBBB-1111\",\n      \"pdfBase64\": \"JVBERi0xLjQK...\"\n    },\n    {\n      \"email\": \"bob@vendor.co.zw\",\n      \"name\": \"Bob Nyathi\",\n      \"invoiceNumber\": \"INV-2026-0101\",\n      \"invoiceDate\": \"2026-03-01\",\n      \"dueDate\": \"2026-03-31\",\n      \"totalAmount\": 850.00,\n      \"vatAmount\": 127.50,\n      \"currency\": \"USD\",\n      \"pdfBase64\": \"JVBERi0xLjQK...\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/campaigns",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "campaigns"]
+						},
+						"description": "Create and dispatch a batch invoice campaign. Returns 202 Accepted immediately.\n\nRecipients are processed asynchronously in batches of 50."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Campaign Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/campaigns/{{campaignId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "campaigns", "{{campaignId}}"]
+						},
+						"description": "Poll this endpoint to track campaign progress.\n\nStatuses: CREATED, QUEUED, IN_PROGRESS, COMPLETED, PARTIALLY_FAILED, FAILED, CANCELLED"
+					},
+					"response": []
+				},
+				{
+					"name": "List All Campaigns",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/campaigns",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "campaigns"]
+						},
+						"description": "List all campaigns ordered by creation date."
+					},
+					"response": []
+				},
+				{
+					"name": "Retry Failed Recipients",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/campaigns/{{campaignId}}/retry",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "campaigns", "{{campaignId}}", "retry"]
+						},
+						"description": "Re-queue all FAILED recipients in a campaign for another delivery attempt."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "ERP Integration",
+			"description": "Fetch invoices from your ERP system and dispatch them.",
+			"item": [
+				{
+					"name": "Dispatch from ERP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 202) {",
+									"    var json = pm.response.json();",
+									"    if (json.emailCampaignId) {",
+									"        pm.collectionVariables.set('campaignId', json.emailCampaignId);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"campaignName\": \"Sage March 2026 Invoices\",\n  \"subject\": \"Your Invoice from eSolutions\",\n  \"templateName\": \"invoice\",\n  \"erpSource\": \"SAGE_INTACCT\",\n  \"tenantId\": \"ESOLUTIONS_ZW\",\n  \"organizationId\": \"{{orgId}}\",\n  \"invoiceIds\": [\"INV-2026-0100\", \"INV-2026-0101\"],\n  \"templateVariables\": {\n    \"companyName\": \"eSolutions\",\n    \"accountsEmail\": \"accounts@esolutions.co.zw\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/erp/dispatch",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "erp", "dispatch"]
+						},
+						"description": "Fetch invoices from your ERP and dispatch as a campaign.\n\nSupported ERP sources: SAGE_INTACCT, QUICKBOOKS_ONLINE, DYNAMICS_365, ODOO, GENERIC_API"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Multiple PDFs and Dispatch",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "metadata",
+									"value": "{\"campaignName\":\"March 2026\",\"subject\":\"Your Invoice\",\"templateName\":\"invoice\",\"organizationId\":\"{{orgId}}\",\"invoices\":[{\"invoiceNumber\":\"INV-001\",\"recipientEmail\":\"a@acme.co.zw\",\"totalAmount\":100,\"currency\":\"USD\"},{\"invoiceNumber\":\"INV-002\",\"recipientEmail\":\"b@acme.co.zw\",\"totalAmount\":200,\"currency\":\"USD\"}]}",
+									"type": "text"
+								},
+								{
+									"key": "INV-001",
+									"type": "file",
+									"src": "",
+									"description": "PDF for INV-001"
+								},
+								{
+									"key": "INV-002",
+									"type": "file",
+									"src": "",
+									"description": "PDF for INV-002"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/erp/dispatch/upload",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "erp", "dispatch", "upload"]
+						},
+						"description": "Upload multiple invoice PDFs and dispatch as a campaign.\n\nEach PDF's form field name must match the invoiceNumber in the metadata."
+					},
+					"response": []
+				},
+				{
+					"name": "List Active ERP Adapters",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/erp/adapters",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "erp", "adapters"]
+						},
+						"description": "List all registered and active ERP adapters."
+					},
+					"response": []
+				},
+				{
+					"name": "Check ERP Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/erp/health/SAGE_INTACCT?tenantId=default",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "erp", "health", "SAGE_INTACCT"],
+							"query": [
+								{
+									"key": "tenantId",
+									"value": "default"
+								}
+							]
+						},
+						"description": "Check if an ERP adapter can reach its backend system."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "My Dashboard",
+			"description": "Authenticated organisation endpoints -- view your profile, campaigns, invoices, and billing.",
+			"item": [
+				{
+					"name": "Get My Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "profile"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/stats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "stats"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List My Campaigns",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/campaigns",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "campaigns"],
+							"query": [
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true,
+									"description": "Optional: QUEUED, IN_PROGRESS, COMPLETED, PARTIALLY_FAILED, FAILED"
+								}
+							]
+						},
+						"description": "List all your campaigns. Optionally filter by status."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Campaign Detail with Invoices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/campaigns/{{campaignId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "campaigns", "{{campaignId}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List My Invoices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/invoices",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "invoices"],
+							"query": [
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true,
+									"description": "Optional: PENDING, SENT, FAILED, SKIPPED"
+								}
+							]
+						},
+						"description": "List all invoices across all campaigns. Optionally filter by status."
+					},
+					"response": []
+				},
+				{
+					"name": "Look Up Invoice by Number",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/invoices/INV-2026-0001",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "invoices", "INV-2026-0001"]
+						},
+						"description": "Look up a specific invoice by its invoice number."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current Billing",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/billing",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "billing"],
+							"query": [
+								{
+									"key": "period",
+									"value": "",
+									"disabled": true,
+									"description": "Optional: YYYY-MM format (defaults to current month)"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Billing History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/billing/history",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "billing", "history"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Customer Registry",
+			"description": "Manage customer contacts for your organisation.",
+			"item": [
+				{
+					"name": "Pre-register Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"buyer@customer.co.zw\",\n  \"name\": \"Jane Smith\",\n  \"companyName\": \"Customer Corp\",\n  \"deliveryMode\": \"EMAIL\",\n  \"vatNumber\": \"87654321\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations/{{orgId}}/customers",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations", "{{orgId}}", "customers"]
+						},
+						"description": "Pre-register a customer contact. Optional -- customers are auto-registered on first dispatch."
+					},
+					"response": []
+				},
+				{
+					"name": "List Customers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations/{{orgId}}/customers",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations", "{{orgId}}", "customers"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Look Up Customer by Email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations/{{orgId}}/customers/by-email?email=buyer@customer.co.zw",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations", "{{orgId}}", "customers", "by-email"],
+							"query": [
+								{
+									"key": "email",
+									"value": "buyer@customer.co.zw"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Billing (Admin)",
+			"description": "Admin billing management -- rate profiles, usage, invoicing, payments.",
+			"item": [
+				{
+					"name": "Create Rate Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Standard\",\n  \"description\": \"Default tiered pricing for SMEs\",\n  \"currency\": \"USD\",\n  \"monthlyBaseFee\": 25.00,\n  \"tiers\": [\n    {\"tierName\": \"Base\", \"fromInvoice\": 1, \"toInvoice\": 500, \"ratePerInvoice\": 0.10},\n    {\"tierName\": \"Volume\", \"fromInvoice\": 501, \"toInvoice\": 2000, \"ratePerInvoice\": 0.07},\n    {\"tierName\": \"Enterprise\", \"fromInvoice\": 2001, \"toInvoice\": null, \"ratePerInvoice\": 0.04}\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/rate-profiles",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "rate-profiles"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Rate Profiles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/rate-profiles",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "rate-profiles"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Estimate Cost",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rateProfileId\": \"<rate-profile-uuid>\",\n  \"invoiceCount\": 1000\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/estimate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "estimate"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Billing Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/summary/{{orgId}}/2026-04",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "summary", "{{orgId}}", "2026-04"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Billing History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/history/{{orgId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "history", "{{orgId}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Usage Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/usage/{{orgId}}/2026-04",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "usage", "{{orgId}}", "2026-04"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Export Usage CSV",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/export/{{orgId}}/2026-04",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "export", "{{orgId}}", "2026-04"]
+						},
+						"description": "Downloads usage records as a CSV file."
+					},
+					"response": []
+				},
+				{
+					"name": "Close Billing Period",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/close/{{orgId}}/2026-04",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "close", "{{orgId}}", "2026-04"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Invoice",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/invoice/{{orgId}}/2026-04",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "invoice", "{{orgId}}", "2026-04"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Record Payment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/payment/{{orgId}}/2026-04",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "payment", "{{orgId}}", "2026-04"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Revenue Report",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/billing/report/2026-04",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "billing", "report", "2026-04"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin Auth",
+			"description": "Admin login/logout. The admin token is used for platform management endpoints.",
+			"item": [
+				{
+					"name": "Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set('adminToken', json.token);",
+									"    console.log('Admin token saved');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"admin\",\n  \"password\": \"your-admin-password\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "login"]
+						},
+						"description": "Login as admin. The token is automatically saved to the `adminToken` variable."
+					},
+					"response": []
+				},
+				{
+					"name": "Admin Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "logout"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Admin Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "users"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Admin User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{adminToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"newadmin\",\n  \"password\": \"securepassword123\",\n  \"displayName\": \"New Admin\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "users"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Organisations",
+			"description": "Organisation lookup and configuration (admin).",
+			"item": [
+				{
+					"name": "Get Organisation by Slug",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations/by-slug/your-company",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations", "by-slug", "your-company"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Organisation by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations/{{orgId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations", "{{orgId}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Rate Profile",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rateProfileId\": \"<rate-profile-uuid>\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations/{{orgId}}/rate-profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations", "{{orgId}}", "rate-profile"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Delivery Mode",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"deliveryMode\": \"BOTH\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/organizations/{{orgId}}/delivery-mode",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "organizations", "{{orgId}}", "delivery-mode"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "PEPPOL",
+			"description": "PEPPOL e-invoicing -- inbound documents, invitations, and health checks.",
+			"item": [
+				{
+					"name": "PEPPOL AP Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/peppol/as4/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["peppol", "as4", "health"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Query Inbound Documents",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/peppol/as4/inbox?organizationId={{orgId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["peppol", "as4", "inbox"],
+							"query": [
+								{
+									"key": "organizationId",
+									"value": "{{orgId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Send PEPPOL Invitation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerEmail\": \"buyer@customer.co.zw\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/invitations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "invitations"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Invitations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/invitations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "invitations"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Invitation",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/my/invitations/<invitation-id>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "my", "invitations", "<invitation-id>"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Invitation Token (Public)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/invitations/<token>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "invitations", "<token>"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Complete PEPPOL Registration (Public)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"participantId\": \"0192:customer-corp\",\n  \"peppolMetadata\": {\n    \"companyName\": \"Customer Corp\",\n    \"country\": \"ZW\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/invitations/<token>/complete",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "invitations", "<token>", "complete"]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
