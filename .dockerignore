@@ -8,4 +8,3 @@ target/
 .env
 .kiro/
 .vscode/
-google-oauth-credentials.json

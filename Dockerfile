@@ -12,6 +12,11 @@ WORKDIR /app
 
 # Non-root user for security
 RUN addgroup -S mailer && adduser -S mailer -G mailer
+
+# Copy Google OAuth credentials (as root before switching user)
+COPY google-oauth-credentials.json /etc/mailer/google-oauth-credentials.json
+RUN chmod 600 /etc/mailer/google-oauth-credentials.json
+
 USER mailer
 
 COPY --from=builder /build/target/*.jar app.jar

@@ -1,47 +1,25 @@
-version: '3.9'
-
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: massmailer
-      POSTGRES_USER: mailer
-      POSTGRES_PASSWORD: mailer_secret
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mailer -d massmailer"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
   mass-mailer:
     build: .
     ports:
       - "127.0.0.1:9199:9199"
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/massmailer
+      DB_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/massmailer
       DB_USER: mailer
-      DB_PASS: mailer_secret
-      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USERNAME: ${SMTP_USERNAME:-no-reply@esolutions.co.zw}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-changeme}
-      MAIL_FROM: ${MAIL_FROM:-no-reply@esolutions.co.zw}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-InvoiceDirect}
-      APP_BASE_URL: ${APP_BASE_URL:-https://ap.invoicedirect.biz}
-      RATE_LIMIT: ${RATE_LIMIT:-10}
-      BATCH_SIZE: ${BATCH_SIZE:-50}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
-      GOOGLE_OAUTH2_CREDENTIALS_PATH: ${GOOGLE_OAUTH2_CREDENTIALS_PATH:-}
-      GOOGLE_OAUTH2_REFRESH_TOKEN: ${GOOGLE_OAUTH2_REFRESH_TOKEN:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DB_PASS: ${POSTGRES_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+      APP_BASE_URL: ${APP_BASE_URL}
+      RATE_LIMIT: ${RATE_LIMIT}
+      BATCH_SIZE: ${BATCH_SIZE}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      GOOGLE_OAUTH2_CREDENTIALS_PATH: ${GOOGLE_OAUTH2_CREDENTIALS_PATH}
+      GOOGLE_OAUTH2_REFRESH_TOKEN: ${GOOGLE_OAUTH2_REFRESH_TOKEN}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9199/actuator/health || exit 1"]
       interval: 10s
@@ -63,16 +41,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ── SSL certificate management (Let's Encrypt) ──
   certbot:
     image: certbot/certbot
     volumes:
       - ssl-certs:/etc/letsencrypt
       - certbot-webroot:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $$!; done'"
     restart: unless-stopped
 
 volumes:
-  pgdata:
   ssl-certs:
   certbot-webroot:
