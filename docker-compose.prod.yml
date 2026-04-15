@@ -1,0 +1,40 @@
+services:
+  mass-mailer:
+    build: .
+    ports:
+      - "127.0.0.1:9199:9199"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DB_URL: jdbc:postgresql://host.docker.internal:${DB_PORT}/massmailer
+      DB_USER: ${DB_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+      APP_BASE_URL: ${APP_BASE_URL}
+      RATE_LIMIT: ${RATE_LIMIT}
+      BATCH_SIZE: ${BATCH_SIZE}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      GOOGLE_OAUTH2_CREDENTIALS_PATH: ${GOOGLE_OAUTH2_CREDENTIALS_PATH}
+      GOOGLE_OAUTH2_REFRESH_TOKEN: ${GOOGLE_OAUTH2_REFRESH_TOKEN}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9199/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8199:80"
+    depends_on:
+      mass-mailer:
+        condition: service_healthy
+    restart: unless-stopped
