@@ -36,5 +36,5 @@ services:
       - "127.0.0.1:8199:80"
     depends_on:
       mass-mailer:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
