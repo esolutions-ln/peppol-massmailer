@@ -12,7 +12,7 @@ DB_PASS="${1:-mailer_secret}"
 
 echo "Setting up database '$DB_NAME' with user '$DB_USER'..."
 
-psql -U postgres <<EOF
+sudo -u postgres psql <<EOF
 -- Create user if not exists
 DO \$\$
 BEGIN
@@ -35,7 +35,7 @@ GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
 EOF
 
 # Grant schema privileges (must be run connected to the target DB)
-psql -U postgres -d "$DB_NAME" <<EOF
+sudo -u postgres psql -d "$DB_NAME" <<EOF
 GRANT ALL ON SCHEMA public TO ${DB_USER};
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${DB_USER};
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${DB_USER};
