@@ -20,8 +20,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "customer_contacts",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_customer_org_email",
-                columnNames = {"organizationId", "email"}),
+                name = "uk_customer_org_erp_customer_id",
+                columnNames = {"organizationId", "erpCustomerId"}),
         indexes = {
                 @Index(name = "idx_customer_org", columnList = "organizationId"),
                 @Index(name = "idx_customer_email", columnList = "email"),
@@ -41,8 +41,7 @@ public class CustomerContact {
     @Column(nullable = false)
     private UUID organizationId;
 
-    /** Customer email address — unique per org */
-    @Column(nullable = false)
+    /** Customer email address — optional; uniqueness is now enforced by erpCustomerId per org */
     private String email;
 
     /** Customer display name */
@@ -83,6 +82,32 @@ public class CustomerContact {
     /** Zimbabwe TIN number — fallback if no VAT */
     @Column(length = 50)
     private String tinNumber;
+
+    /**
+     * ZIMRA Business Partner Number — the canonical buyer identifier on fiscal tax invoices.
+     * Stable per legal entity and preferred over VAT/TIN for customer resolution.
+     */
+    @Column(length = 50)
+    private String bpn;
+
+    /**
+     * Trading-as name. Distinct from {@link #companyName} (legal entity), e.g.
+     * legal "G Tide Mobile Phone Zimbabwe Private Limited", trading "G-Tel Private Limited".
+     */
+    @Column(length = 255)
+    private String tradingName;
+
+    @Column(length = 255)
+    private String addressLine1;
+
+    @Column(length = 255)
+    private String addressLine2;
+
+    @Column(length = 100)
+    private String city;
+
+    @Column(length = 100)
+    private String country;
 
     /** Whether this customer has unsubscribed from invoice emails */
     @Builder.Default

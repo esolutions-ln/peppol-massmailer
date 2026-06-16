@@ -25,7 +25,7 @@ function authHeaders(apiKey?: string): Record<string, string> {
 }
 
 // ─── Admin Auth ───────────────────────────────────────────────────────────────
-export const adminLogin = (username: string, password: string): Promise<AxiosResponse<{ apiKey: string; name: string }>> =>
+export const adminLogin = (username: string, password: string): Promise<AxiosResponse<{ token: string; name: string }>> =>
   axios.post(`${BASE}/admin/login`, { username, password })
 
 // ─── Organizations ────────────────────────────────────────────────────────────
@@ -44,11 +44,22 @@ export const getOrgBySlug = (slug: string): Promise<AxiosResponse<Organization>>
 export const assignRateProfile = (id: string, rateProfileId: string): Promise<AxiosResponse<void>> =>
   axios.patch(`${BASE}/organizations/${id}/rate-profile`, { rateProfileId })
 
+export const updateOrg = (id: string, data: Partial<Organization>): Promise<AxiosResponse<Organization>> =>
+  axios.put(`${BASE}/organizations/${id}`, data)
+
+export const deactivateOrg = (id: string): Promise<AxiosResponse<Organization>> =>
+  axios.delete(`${BASE}/organizations/${id}`)
+
 // ─── Customers ────────────────────────────────────────────────────────────────
 export const registerCustomer = (
   orgId: string, data: Partial<CustomerContact>, apiKey?: string
 ): Promise<AxiosResponse<CustomerContact>> =>
   axios.post(`${BASE}/organizations/${orgId}/customers`, data, { headers: authHeaders(apiKey) })
+
+export const updateCustomer = (
+  orgId: string, customerId: string, data: Partial<CustomerContact>, apiKey?: string
+): Promise<AxiosResponse<CustomerContact>> =>
+  axios.put(`${BASE}/organizations/${orgId}/customers/${customerId}`, data, { headers: authHeaders(apiKey) })
 
 export const listCustomers = (
   orgId: string, apiKey?: string
@@ -61,6 +72,51 @@ export const getCustomerByEmail = (
   axios.get(`${BASE}/organizations/${orgId}/customers/by-email`, {
     headers: authHeaders(apiKey), params: { email }
   })
+
+export interface CustomerImportRowOutcome {
+  row: number
+  identifier: string | null
+  status: 'CREATED' | 'UPDATED' | 'SKIPPED' | 'ERROR'
+  message: string | null
+}
+
+export interface CustomerImportResult {
+  totalRows: number
+  created: number
+  updated: number
+  skipped: number
+  errors: Array<{ row: number; message: string; rawLine: string }>
+  outcomes: CustomerImportRowOutcome[]
+}
+
+export const importCustomersCsv = (
+  orgId: string, file: File, apiKey?: string, mapping?: Record<string, string>
+): Promise<AxiosResponse<CustomerImportResult>> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  if (mapping && Object.keys(mapping).length) {
+    fd.append('mapping', new Blob([JSON.stringify(mapping)], { type: 'application/json' }))
+  }
+  return axios.post(`${BASE}/organizations/${orgId}/customers/import`, fd, {
+    headers: { ...authHeaders(apiKey), 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+export interface CustomerImportPreview {
+  columns: string[]
+  sampleRows: string[][]
+  suggestedMapping: Record<string, string>
+}
+
+export const previewCustomersCsv = (
+  orgId: string, file: File, apiKey?: string
+): Promise<AxiosResponse<CustomerImportPreview>> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return axios.post(`${BASE}/organizations/${orgId}/customers/import/preview`, fd, {
+    headers: { ...authHeaders(apiKey), 'Content-Type': 'multipart/form-data' }
+  })
+}
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 export const createCampaign = (data: unknown, apiKey?: string): Promise<AxiosResponse<Campaign>> =>

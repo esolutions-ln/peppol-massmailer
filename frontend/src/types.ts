@@ -32,7 +32,7 @@ export interface Organization {
   erpTenantId?: string
   rateProfileId?: string
   apiKey: string
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+  status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED'
   // Delivery configuration
   deliveryMode: DeliveryMode        // default delivery method for this org
   peppolParticipantId?: string      // org's own PEPPOL participant ID (0190:ZW...)
@@ -47,12 +47,20 @@ export interface CustomerContact {
   id: string
   email: string
   name?: string
+  phone?: string
   companyName?: string
+  tradingName?: string
+  erpCustomerId?: string        // ERP-native customer key (e.g. Exor TenantCode)
   erpSource?: string
   vatNumber?: string            // Zimbabwe VAT number e.g. 12345678
   tinNumber?: string            // Zimbabwe TIN number e.g. 1234567890
+  bpn?: string                  // ZIMRA Business Partner Number
   peppolParticipantId?: string  // derived: 0190:ZW{vatNumber} or 0190:ZW{tinNumber}
   deliveryMode?: DeliveryMode   // overrides org default for this customer
+  addressLine1?: string
+  addressLine2?: string
+  city?: string
+  country?: string
   totalInvoicesSent: number
   totalDeliveryFailures: number
   unsubscribed: boolean

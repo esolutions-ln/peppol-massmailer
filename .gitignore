@@ -17,3 +17,4 @@ service-account-key.json
 
 # Logs
 *.log
+backups/
