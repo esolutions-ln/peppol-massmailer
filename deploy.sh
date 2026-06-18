@@ -87,11 +87,13 @@ $COMPOSE up -d
 echo ""
 echo "[4/4] Waiting for services to be healthy..."
 
-for i in $(seq 1 30); do
-  if $COMPOSE ps | grep -q "(healthy)"; then
+for i in $(seq 1 60); do
+  status=$($COMPOSE ps --format '{{.Service}} {{.Status}}' | awk '$1=="mass-mailer"{$1=""; sub(/^ /,""); print}')
+  if echo "$status" | grep -q "(healthy)"; then
+    echo "  -> mass-mailer healthy"
     break
   fi
-  echo "  ... waiting (${i}/30)"
+  echo "  ... waiting for mass-mailer (${i}/60): ${status:-not running}"
   sleep 5
 done
 

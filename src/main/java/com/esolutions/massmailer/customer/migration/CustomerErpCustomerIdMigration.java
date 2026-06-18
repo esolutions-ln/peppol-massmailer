@@ -32,9 +32,11 @@ public class CustomerErpCustomerIdMigration {
     private static final String NEW_UK = "uk_customer_org_erp_customer_id";
 
     private final JdbcTemplate jdbc;
+    private final CustomerContactSplitMigration splitMigration;
 
-    public CustomerErpCustomerIdMigration(JdbcTemplate jdbc) {
+    public CustomerErpCustomerIdMigration(JdbcTemplate jdbc, CustomerContactSplitMigration splitMigration) {
         this.jdbc = jdbc;
+        this.splitMigration = splitMigration;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -54,6 +56,7 @@ public class CustomerErpCustomerIdMigration {
         }
         addNewUniqueConstraint();
         logFinalState();
+        splitMigration.run();
     }
 
     private void logFinalState() {

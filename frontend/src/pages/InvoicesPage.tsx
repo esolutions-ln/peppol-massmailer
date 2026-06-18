@@ -90,7 +90,7 @@ function PdfPreviewModal({ invoice, onClose }: { invoice: InvoiceRecord; onClose
 }
 
 export default function InvoicesPage() {
-  const { session } = useAuth()
+  const { session, isAdmin } = useAuth()
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -100,6 +100,12 @@ export default function InvoicesPage() {
   const [selected, setSelected] = useState<InvoiceRecord | null>(null)
 
   const load = useCallback((invoiceSearch: string, status: string) => {
+    if (isAdmin) {
+      setLoading(false)
+      setInvoices([])
+      setError('Admin view: open an organisation from the Organisations page to see its invoices.')
+      return
+    }
     setLoading(true)
     setError('')
     if (invoiceSearch.trim()) {
@@ -120,7 +126,7 @@ export default function InvoicesPage() {
         .catch(() => { setInvoices([]); setError('Failed to load invoices. Check your connection.') })
         .finally(() => setLoading(false))
     }
-  }, [session?.apiKey])
+  }, [session?.apiKey, isAdmin])
 
   useEffect(() => {
     setActiveSearch('')

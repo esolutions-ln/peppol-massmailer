@@ -6,9 +6,12 @@ import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import CampaignsPage from './pages/CampaignsPage'
 import InvoicesPage from './pages/InvoicesPage'
+import EmailTemplatesPage from './pages/EmailTemplatesPage'
 import CustomersPage from './pages/CustomersPage'
+import MembersPage from './pages/MembersPage'
 import BillingPage from './pages/BillingPage'
 import OrganizationsPage from './pages/admin/OrganizationsPage'
+import AdminOrgCustomersPage from './pages/admin/AdminOrgCustomersPage'
 import RateProfilesPage from './pages/admin/RateProfilesPage'
 import AdminCampaignsPage from './pages/admin/AdminCampaignsPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
@@ -37,11 +40,14 @@ function AppRoutes() {
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/campaigns" element={<ProtectedRoute><CampaignsPage /></ProtectedRoute>} />
       <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
+      <Route path="/email-templates" element={<ProtectedRoute><EmailTemplatesPage /></ProtectedRoute>} />
       <Route path="/send" element={<ProtectedRoute><SendTestPage /></ProtectedRoute>} />
       <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
+      <Route path="/team" element={<ProtectedRoute><MembersPage /></ProtectedRoute>} />
       <Route path="/api-docs" element={<ProtectedRoute><ApiDocsPage /></ProtectedRoute>} />
 
       <Route path="/admin/organizations" element={<ProtectedRoute adminOnly><OrganizationsPage /></ProtectedRoute>} />
+      <Route path="/admin/organizations/:orgId/customers" element={<ProtectedRoute adminOnly><AdminOrgCustomersPage /></ProtectedRoute>} />
       <Route path="/admin/rate-profiles" element={<ProtectedRoute adminOnly><RateProfilesPage /></ProtectedRoute>} />
       <Route path="/admin/billing" element={<ProtectedRoute adminOnly><BillingPage /></ProtectedRoute>} />
       <Route path="/admin/campaigns" element={<ProtectedRoute adminOnly><AdminCampaignsPage /></ProtectedRoute>} />

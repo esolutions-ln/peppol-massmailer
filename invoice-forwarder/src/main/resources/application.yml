@@ -1,0 +1,35 @@
+server:
+  port: 9099
+
+spring:
+  application:
+    name: invoice-forwarder
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+forwarder:
+  mailer:
+    url: ${FORWARDER_MAILER_URL:https://ap.invoicedirect.biz}
+    admin-user: ${FORWARDER_MAILER_ADMIN_USER:}
+    admin-pass: ${FORWARDER_MAILER_ADMIN_PASS:}
+  inbox-dir: ${FORWARDER_INBOX_DIR:/var/lib/invoicedirect/inbox}
+  processed-dir: ${FORWARDER_PROCESSED_DIR:/var/lib/invoicedirect/inbox/processed}
+  failed-dir: ${FORWARDER_FAILED_DIR:/var/lib/invoicedirect/inbox/failed}
+  ledger-path: ${FORWARDER_LEDGER_PATH:/var/lib/invoicedirect/ledger.db}
+  default-org-id: ${FORWARDER_DEFAULT_ORG_ID:}
+  batch-window-seconds: ${FORWARDER_BATCH_WINDOW_SECONDS:30}
+  status-poll-seconds: ${FORWARDER_STATUS_POLL_SECONDS:60}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.esolutions.forwarder: INFO

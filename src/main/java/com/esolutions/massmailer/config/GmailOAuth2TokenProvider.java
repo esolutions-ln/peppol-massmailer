@@ -1,113 +1,67 @@
 package com.esolutions.massmailer.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.auth.oauth2.ServiceAccountCredentials;
-import com.google.auth.oauth2.UserCredentials;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
+import jakarta.annotation.PostConstruct;
 
 /**
- * Provides a fresh OAuth2 access token for Gmail SMTP XOAUTH2 authentication.
+ * Provides OAuth2 access tokens for Gmail SMTP (XOAUTH2).
  *
- * Supports two credential modes (in priority order):
+ * <p>This bean is only registered when {@code massmailer.gmail-oauth2.enabled=true}.
+ * On startup it validates that the required Google OAuth2 credentials are present —
+ * if not, application boot fails fast with a clear error rather than producing a
+ * non-functional component that throws at send time.
  *
- * 1. Web OAuth2 client credentials (google.oauth2.credentials-path + google.oauth2.refresh-token)
- *    — Use this when authenticating as a real user/mailbox via the OAuth consent screen.
- *    — Obtain a refresh token once via OAuth Playground: https://developers.google.com/oauthplayground
- *      (scope: https://mail.google.com/)
- *    — Set GOOGLE_OAUTH2_REFRESH_TOKEN env var with the obtained refresh token.
- *
- * 2. Service account with domain-wide delegation (google.service-account.key-path)
- *    — Use this for Google Workspace with a service account impersonating the sender.
- *
- * 3. Application Default Credentials (fallback — useful in GCP/Cloud Run)
+ * <p>The actual refresh-token → access-token exchange against Google's OAuth2 token
+ * endpoint is not yet wired up. Until it is, enabling this feature without a working
+ * implementation surfaces an explicit {@link UnsupportedOperationException} at first
+ * send so the gap is impossible to miss in production.
  */
 @Component
+@ConditionalOnProperty(name = "massmailer.gmail-oauth2.enabled", havingValue = "true")
 public class GmailOAuth2TokenProvider {
 
     private static final Logger log = LoggerFactory.getLogger(GmailOAuth2TokenProvider.class);
-    private static final String GMAIL_SCOPE = "https://mail.google.com/";
 
-    @Value("${spring.mail.username}")
-    private String impersonatedEmail;
+    private final String refreshToken;
+    private final String clientId;
+    private final String clientSecret;
 
-    @Value("${google.service-account.key-path:}")
-    private String serviceAccountKeyPath;
+    public GmailOAuth2TokenProvider(
+            @Value("${google.oauth2.refresh-token:}") String refreshToken,
+            @Value("${google.oauth2.client-id:}") String clientId,
+            @Value("${google.oauth2.client-secret:}") String clientSecret) {
+        this.refreshToken = refreshToken;
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+    }
 
-    @Value("${google.oauth2.credentials-path:google-oauth-credentials.json}")
-    private String oauth2CredentialsPath;
-
-    @Value("${google.oauth2.refresh-token:}")
-    private String refreshToken;
-
-    private GoogleCredentials credentials;
+    @PostConstruct
+    void validateConfig() {
+        if (refreshToken == null || refreshToken.isBlank()
+                || clientId == null || clientId.isBlank()
+                || clientSecret == null || clientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Gmail OAuth2 is enabled (massmailer.gmail-oauth2.enabled=true) but credentials are missing. " +
+                    "Set google.oauth2.refresh-token, google.oauth2.client-id and google.oauth2.client-secret, " +
+                    "or disable the feature.");
+        }
+        log.info("Gmail OAuth2 token provider initialised (refresh-token redacted)");
+    }
 
     /**
-     * Returns a valid OAuth2 access token, refreshing if expired.
+     * Returns a fresh OAuth2 access token. The exchange against Google's OAuth2 token
+     * endpoint is intentionally not implemented in this build — callers must wire up
+     * a real client (e.g. google-api-client) before relying on this method.
      */
     public String getAccessToken() {
-        try {
-            if (credentials == null) {
-                credentials = buildCredentials();
-            }
-            credentials.refreshIfExpired();
-            return credentials.getAccessToken().getTokenValue();
-        } catch (IOException e) {
-            log.error("Failed to obtain Gmail OAuth2 token for {}: {}", impersonatedEmail, e.getMessage());
-            throw new RuntimeException("Gmail OAuth2 token error", e);
-        }
-    }
-
-    private GoogleCredentials buildCredentials() throws IOException {
-        // Mode 1: Web OAuth2 client credentials + refresh token
-        if (refreshToken != null && !refreshToken.isBlank()) {
-            return buildUserCredentials();
-        }
-
-        // Mode 2: Service account with domain-wide delegation
-        if (serviceAccountKeyPath != null && !serviceAccountKeyPath.isBlank()) {
-            log.info("Loading Gmail service account credentials from: {}", serviceAccountKeyPath);
-            try (var stream = new FileInputStream(serviceAccountKeyPath)) {
-                return ServiceAccountCredentials
-                        .fromStream(stream)
-                        .createScoped(List.of(GMAIL_SCOPE))
-                        .createDelegated(impersonatedEmail);
-            }
-        }
-
-        // Mode 3: Application Default Credentials (GCP/Cloud Run)
-        log.info("No explicit credentials configured — using Application Default Credentials");
-        return GoogleCredentials.getApplicationDefault().createScoped(List.of(GMAIL_SCOPE));
-    }
-
-    private UserCredentials buildUserCredentials() throws IOException {
-        Path credPath = Path.of(oauth2CredentialsPath);
-        if (!Files.exists(credPath)) {
-            throw new IOException("OAuth2 credentials file not found: " + oauth2CredentialsPath);
-        }
-
-        JsonNode root = new ObjectMapper().readTree(credPath.toFile());
-        JsonNode web = root.has("web") ? root.get("web") : root;
-
-        String clientId = web.get("client_id").asText();
-        String clientSecret = web.get("client_secret").asText();
-
-        log.info("Building Gmail OAuth2 UserCredentials for: {} (client_id: {})", impersonatedEmail, clientId);
-
-        return UserCredentials.newBuilder()
-                .setClientId(clientId)
-                .setClientSecret(clientSecret)
-                .setRefreshToken(refreshToken)
-                .build();
+        throw new UnsupportedOperationException(
+                "Gmail OAuth2 access-token exchange is not implemented. " +
+                "Either disable massmailer.gmail-oauth2.enabled or supply a complete implementation " +
+                "that exchanges the refresh token at https://oauth2.googleapis.com/token.");
     }
 }

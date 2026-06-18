@@ -19,22 +19,38 @@ const SAMPLE_CSV =
 type Step = 'upload' | 'map' | 'result'
 
 const TARGETS: Array<{ key: string; label: string; required?: boolean; hint?: string }> = [
-  { key: 'erpCustomerId',      label: 'Customer ID',        required: true, hint: 'Unique key for matching existing customers' },
-  { key: 'email',              label: 'Email',              hint: 'Optional. Picks first valid address if cell has multiple' },
-  { key: 'name',               label: 'Contact name' },
-  { key: 'phone',              label: 'Phone' },
-  { key: 'companyName',        label: 'Company (legal)' },
-  { key: 'tradingName',        label: 'Trading name' },
-  { key: 'vatNumber',          label: 'VAT number' },
-  { key: 'tinNumber',          label: 'TIN number' },
-  { key: 'bpn',                label: 'BPN (ZIMRA)' },
-  { key: 'addressLine1',       label: 'Address line 1' },
-  { key: 'addressLine2',       label: 'Address line 2' },
-  { key: 'city',               label: 'City' },
-  { key: 'country',            label: 'Country' },
-  { key: 'deliveryMode',       label: 'Delivery mode', hint: 'EMAIL / AS4 / BOTH' },
-  { key: 'erpSource',          label: 'ERP source' },
-  { key: 'peppolParticipantId', label: 'PEPPOL participant ID' },
+  { key: 'erpCustomerId',      label: 'Customer ID',        required: true,
+    hint: 'Unique key from your ERP (e.g. Exor TenantCode, Sage account no). Used to match existing customers on re-import — same ID updates, new ID creates.' },
+  { key: 'email',              label: 'Email',
+    hint: 'Billing email for invoice delivery. If the cell holds multiple addresses (separated by ; , or space), the first valid one is picked.' },
+  { key: 'name',               label: 'Contact name',
+    hint: 'Name of the accounts/billing contact at the customer — appears in the salutation of outbound emails.' },
+  { key: 'phone',              label: 'Phone',
+    hint: 'Primary phone for the accounts/billing contact. Stored verbatim; not validated or normalised.' },
+  { key: 'companyName',        label: 'Company (legal)',
+    hint: 'Legal/registered entity name as it appears on the invoice Buyer block (e.g. "Zimbabwe Allied Banking Group Limited").' },
+  { key: 'tradingName',        label: 'Trading name',
+    hint: 'Trading-as / DBA name if different from the legal name. Optional.' },
+  { key: 'vatNumber',          label: 'VAT number',
+    hint: 'Zimbabwe VAT registration number. Stored verbatim; not validated. Branches of the same buyer may legitimately share one VAT.' },
+  { key: 'tinNumber',          label: 'TIN number',
+    hint: 'Taxpayer Identification Number. Stored verbatim; not validated.' },
+  { key: 'bpn',                label: 'BPN (ZIMRA)',
+    hint: 'ZIMRA Business Partner Number — required for fiscalised invoice exchange with ZIMRA.' },
+  { key: 'addressLine1',       label: 'Address line 1',
+    hint: 'Street address line 1 of the customer\'s billing address.' },
+  { key: 'addressLine2',       label: 'Address line 2',
+    hint: 'Street address line 2 — suburb, building, or suite if applicable.' },
+  { key: 'city',               label: 'City',
+    hint: 'City or town of the billing address.' },
+  { key: 'country',            label: 'Country',
+    hint: 'Country of the billing address. Defaults to organisation country if blank.' },
+  { key: 'deliveryMode',       label: 'Delivery mode',
+    hint: 'How invoices reach this customer: EMAIL (SMTP only), AS4 (PEPPOL only), or BOTH. Blank inherits the organisation default.' },
+  { key: 'erpSource',          label: 'ERP source',
+    hint: 'Which ERP this customer came from — Odoo, Sage, QuickBooks, Dynamics365, Exor, etc. Used for traceability.' },
+  { key: 'peppolParticipantId', label: 'PEPPOL participant ID',
+    hint: 'PEPPOL network participant identifier (e.g. "0088:7300010000001"). Required only if delivery mode includes AS4.' },
 ]
 
 export default function CustomerImportModal({ orgId, apiKey, onClose, onImported }: Props) {
@@ -110,7 +126,7 @@ export default function CustomerImportModal({ orgId, apiKey, onClose, onImported
 
   return (
     <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 820 }}>
+      <div className="modal" style={{ maxWidth: 1180, width: '95vw' }}>
         <div className="modal-header">
           <span className="modal-title">Import Customers — {step === 'upload' ? 'Choose File' : step === 'map' ? 'Map Columns' : 'Result'}</span>
           <button className="close-btn" onClick={onClose}><X size={18} /></button>
@@ -211,7 +227,7 @@ function UploadStep({ file, dragOver, setDragOver, onDrop, onPick, inputRef, dow
             <Upload size={28} color="#64748b" />
             <div style={{ marginTop: 10, fontWeight: 600 }}>Drag a CSV file here or click to choose</div>
             <div className="text-muted text-sm" style={{ marginTop: 4 }}>
-              Header row required. Column 1 is treated as a row label and ignored.
+              Header row required. All columns are shown — map each to a customer field on the next step.
             </div>
           </>
         )}
@@ -270,29 +286,33 @@ function MapStep({ preview, mapping, setMapping, onBack, onNext, busy }: MapProp
       </div>
 
       <div style={{
-        maxHeight: 380, overflow: 'auto',
+        maxHeight: 'calc(85vh - 230px)', minHeight: 460, overflow: 'auto',
         border: '1px solid #e2e8f0', borderRadius: 8,
       }}>
-        <table style={{ width: '100%' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
-              <th style={{ width: '32%' }}>Target field</th>
-              <th>Source column</th>
-              <th>Sample</th>
+              <th style={{ width: '38%', textAlign: 'left', padding: '6px 10px' }}>Target field</th>
+              <th style={{ width: '32%', textAlign: 'left', padding: '6px 10px' }}>Source column</th>
+              <th style={{ textAlign: 'left', padding: '6px 10px' }}>Sample</th>
             </tr>
           </thead>
           <tbody>
             {TARGETS.map(t => {
               const sample = previewFor(t.key)
               return (
-                <tr key={t.key}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>
+                <tr key={t.key} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '6px 10px', verticalAlign: 'top' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>
                       {t.label}{t.required && <span style={{ color: '#dc2626' }}> *</span>}
                     </div>
-                    {t.hint && <div className="text-muted text-sm">{t.hint}</div>}
+                    {t.hint && (
+                      <div className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.4, marginTop: 2 }}>
+                        {t.hint}
+                      </div>
+                    )}
                   </td>
-                  <td>
+                  <td style={{ padding: '6px 10px', verticalAlign: 'top' }}>
                     <select
                       value={mapping[t.key] ?? ''}
                       onChange={e => setOne(t.key, e.target.value)}
@@ -304,7 +324,7 @@ function MapStep({ preview, mapping, setMapping, onBack, onNext, busy }: MapProp
                       ))}
                     </select>
                   </td>
-                  <td className="text-muted text-sm" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td className="text-muted" style={{ padding: '6px 10px', verticalAlign: 'top', fontSize: 12, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {sample ?? '—'}
                   </td>
                 </tr>

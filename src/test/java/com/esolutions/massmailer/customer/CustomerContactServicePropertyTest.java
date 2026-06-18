@@ -300,8 +300,17 @@ class CustomerContactServicePropertyTest {
         @Override public <S extends CustomerContact, R> R findBy(org.springframework.data.domain.Example<S> example, java.util.function.Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> queryFunction) { return null; }
         @Override public List<CustomerContact> findAll(org.springframework.data.domain.Sort sort) { return List.of(); }
         @Override public org.springframework.data.domain.Page<CustomerContact> findAll(org.springframework.data.domain.Pageable pageable) { return org.springframework.data.domain.Page.empty(); }
-        @Override public List<CustomerContact> findByOrganizationIdOrderByCreatedAtDesc(UUID organizationId) { return List.of(); }
+        @Override public org.springframework.data.domain.Page<CustomerContact> findByOrganizationId(UUID organizationId, org.springframework.data.domain.Pageable pageable) { return org.springframework.data.domain.Page.empty(); }
+        @Override public org.springframework.data.domain.Page<CustomerContact> searchByOrganizationId(UUID orgId, String q, org.springframework.data.domain.Pageable pageable) { return org.springframework.data.domain.Page.empty(); }
         @Override public boolean existsByOrganizationIdAndEmail(UUID organizationId, String email) { return store.containsKey(key(organizationId, email)); }
         @Override public Optional<CustomerContact> findByOrganizationIdAndErpCustomerId(UUID organizationId, String erpCustomerId) { return Optional.empty(); }
+        @Override public Optional<CustomerContact> findFirstByOrganizationIdAndVatNumberOrderByCreatedAtDesc(UUID organizationId, String vatNumber) { return Optional.empty(); }
+        @Override public Optional<CustomerContact> findFirstByOrganizationIdAndTinNumberOrderByCreatedAtDesc(UUID organizationId, String tinNumber) { return Optional.empty(); }
+        @Override public Optional<CustomerContact> findFirstByOrganizationIdAndBpnOrderByCreatedAtDesc(UUID organizationId, String bpn) { return Optional.empty(); }
+        @Override public List<CustomerContact> findByOrganizationIdAndVatNumber(UUID organizationId, String vatNumber) { return List.of(); }
+        @Override public List<CustomerContact> findByOrganizationIdAndTinNumber(UUID organizationId, String tinNumber) { return List.of(); }
+        @Override public List<CustomerContact> findByOrganizationIdAndBpn(UUID organizationId, String bpn) { return List.of(); }
+        @Override public Optional<CustomerContact> findFirstByErpCustomerIdOrderByCreatedAtDesc(String erpCustomerId) { return Optional.empty(); }
+        @Override public Optional<CustomerContact> findFirstByTinNumberOrderByCreatedAtDesc(String tinNumber) { return Optional.empty(); }
     }
 }

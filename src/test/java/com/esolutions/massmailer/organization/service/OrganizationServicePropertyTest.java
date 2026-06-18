@@ -8,6 +8,7 @@ import com.esolutions.massmailer.organization.model.OrgUser;
 import com.esolutions.massmailer.organization.model.Organization;
 import com.esolutions.massmailer.organization.repository.OrgUserRepository;
 import com.esolutions.massmailer.organization.repository.OrganizationRepository;
+import com.esolutions.massmailer.organization.service.OrgMemberService;
 import net.jqwik.api.*;
 import net.jqwik.api.constraints.WithNull;
 import org.mockito.Mockito;
@@ -83,11 +84,11 @@ class OrganizationServicePropertyTest {
 
         when(mockRateRepo.findByName(anyString())).thenReturn(Optional.empty());
 
-        OrganizationService service = new OrganizationService(mockRepo, mockOrgUserRepo, mockRateRepo);
+        OrganizationService service = new OrganizationService(mockRepo, mockOrgUserRepo, mockRateRepo, mock(OrgMemberService.class));
 
         // Act: register one org per slug
         List<String> collectedApiKeys = new ArrayList<>();
-        OrgUserRequest userReq = new OrgUserRequest("Jane", "Doe", "CFO", "jane@test.com");
+        OrgUserRequest userReq = new OrgUserRequest("Jane", "Doe", "CFO", "jane@test.com", null);
         for (String slug : slugs) {
             RegisterOrgRequest request = new RegisterOrgRequest(
                     userReq,
@@ -249,6 +250,6 @@ class OrganizationServicePropertyTest {
                     .jobTitle(u.getJobTitle()).email(u.getEmail()).build();
         });
         when(mockRateRepo.findByName(anyString())).thenReturn(Optional.empty());
-        return new OrganizationService(mockRepo, mockOrgUserRepo, mockRateRepo);
+        return new OrganizationService(mockRepo, mockOrgUserRepo, mockRateRepo, mock(OrgMemberService.class));
     }
 }

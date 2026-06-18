@@ -29,7 +29,10 @@ class PdfAttachmentResolverPropertyTest {
             new ZimraFiscalValidator(),
             new MailerProperties(
                     "noreply@test.com", "Test", 100, 5000, 3, 2000L,
-                    false  // fiscalValidationEnabled = false
+                    false,                                // fiscalValidationEnabled = false
+                    System.getProperty("java.io.tmpdir"), // pdfInboxBasePath — tests use temp dir
+                    50L * 1024 * 1024,                    // maxPdfBytes = 50 MB (generous for property tests)
+                    null                                  // brevo — defaults applied in compact ctor
             )
     );
 

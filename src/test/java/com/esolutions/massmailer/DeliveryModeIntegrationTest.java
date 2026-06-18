@@ -1,7 +1,7 @@
 package com.esolutions.massmailer;
 
-import com.esolutions.massmailer.customer.model.CustomerContact;
-import com.esolutions.massmailer.customer.repository.CustomerContactRepository;
+import com.esolutions.massmailer.customer.model.Customer;
+import com.esolutions.massmailer.customer.repository.CustomerRepository;
 import com.esolutions.massmailer.model.DeliveryMode;
 import com.esolutions.massmailer.organization.model.Organization;
 import com.esolutions.massmailer.organization.repository.OrganizationRepository;
@@ -37,7 +37,7 @@ class DeliveryModeIntegrationTest {
     @Autowired WebApplicationContext wac;
     @Autowired ObjectMapper objectMapper;
     @Autowired OrganizationRepository orgRepo;
-    @Autowired CustomerContactRepository customerRepo;
+    @Autowired CustomerRepository customerRepo;
 
     private MockMvc mockMvc;
 
@@ -208,6 +208,7 @@ class DeliveryModeIntegrationTest {
                         .content("""
                                 {
                                   "email": "buyer@acme.co.zw",
+                                  "erpCustomerId": "ACME-001",
                                   "name": "Acme Buyer",
                                   "companyName": "Acme Corp",
                                   "deliveryMode": "AS4",
@@ -219,8 +220,8 @@ class DeliveryModeIntegrationTest {
                 .andExpect(jsonPath("$.peppolParticipantId").value("0190:ZW55556666"))
                 .andExpect(jsonPath("$.vatNumber").value("55556666"));
 
-        CustomerContact c = customerRepo
-                .findByOrganizationIdAndEmail(emailOrgId, "buyer@acme.co.zw")
+        Customer c = customerRepo
+                .findByOrganizationIdAndErpCustomerId(emailOrgId, "ACME-001")
                 .orElseThrow();
         assertThat(c.getDeliveryMode()).isEqualTo(DeliveryMode.AS4);
         assertThat(c.getPeppolParticipantId()).isEqualTo("0190:ZW55556666");
@@ -241,6 +242,7 @@ class DeliveryModeIntegrationTest {
                         .content("""
                                 {
                                   "email": "tin-only@vendor.co.zw",
+                                  "erpCustomerId": "TIN-VENDOR-001",
                                   "name": "TIN Vendor",
                                   "deliveryMode": "AS4",
                                   "tinNumber": "1234567890"
@@ -266,6 +268,7 @@ class DeliveryModeIntegrationTest {
                         .content("""
                                 {
                                   "email": "inherit@vendor.co.zw",
+                                  "erpCustomerId": "INHERIT-001",
                                   "name": "Inherit Vendor"
                                 }
                                 """))
@@ -273,8 +276,8 @@ class DeliveryModeIntegrationTest {
                 // deliveryMode should be null — inherits from org at dispatch time
                 .andExpect(jsonPath("$.deliveryMode").doesNotExist());
 
-        CustomerContact c = customerRepo
-                .findByOrganizationIdAndEmail(emailOrgId, "inherit@vendor.co.zw")
+        Customer c = customerRepo
+                .findByOrganizationIdAndErpCustomerId(emailOrgId, "INHERIT-001")
                 .orElseThrow();
         assertThat(c.getDeliveryMode()).isNull();
     }
@@ -291,9 +294,9 @@ class DeliveryModeIntegrationTest {
 
         mockMvc.perform(get("/api/v1/organizations/" + emailOrgId + "/customers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.email == 'buyer@acme.co.zw')].deliveryMode")
+                .andExpect(jsonPath("$.content[?(@.erpCustomerId == 'ACME-001')].deliveryMode")
                         .value(org.hamcrest.Matchers.hasItem("AS4")))
-                .andExpect(jsonPath("$[?(@.email == 'buyer@acme.co.zw')].peppolParticipantId")
+                .andExpect(jsonPath("$.content[?(@.erpCustomerId == 'ACME-001')].peppolParticipantId")
                         .value(org.hamcrest.Matchers.hasItem("0190:ZW55556666")));
     }
 

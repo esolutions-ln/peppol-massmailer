@@ -19,7 +19,7 @@ export default function AdminLoginPage() {
     setLoading(true)
     try {
       const res = await adminLogin(username.trim(), password)
-      login({ role: 'admin', name: res.data.name, username: username.trim(), apiKey: res.data.apiKey })
+      login({ role: 'admin', name: res.data.name, username: username.trim(), apiKey: res.data.token })
       navigate('/dashboard')
     } catch (err: any) {
       if (err.response?.status === 401) {

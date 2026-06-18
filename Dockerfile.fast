@@ -1,0 +1,26 @@
+# Fast-path Dockerfile — assumes target/*.jar has already been built on the host.
+# Use when Maven-inside-Docker is too slow due to the registry's flaky upstream mirror.
+#
+#   mvn package -Dmaven.test.skip=true -B
+#   docker build -f Dockerfile.fast -t mass-mailer-mass-mailer:latest .
+#
+FROM eclipse-temurin:25-jre-alpine
+WORKDIR /app
+
+RUN addgroup -S mailer && adduser -S mailer -G mailer
+
+COPY google-oauth-credentials.json /etc/mailer/google-oauth-credentials.json
+RUN chmod 600 /etc/mailer/google-oauth-credentials.json
+
+USER mailer
+
+COPY target/*.jar app.jar
+
+EXPOSE 9199
+
+ENTRYPOINT ["java", \
+    "--enable-preview", \
+    "-XX:+UseZGC", \
+    "-Xmx512m", \
+    "-Dserver.port=9199", \
+    "-jar", "app.jar"]

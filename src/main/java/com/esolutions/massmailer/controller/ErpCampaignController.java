@@ -165,8 +165,20 @@ public class ErpCampaignController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> fetchAndDispatch(@Valid @RequestBody ErpDispatchRequest request) {
 
+        // Resolve erpSource — default to GENERIC_API when not provided
+        ErpSource erpSource = request.erpSource() != null ? request.erpSource() : ErpSource.GENERIC_API;
+
+        // GENERIC_API has no ERP fetch capability — direct callers to the upload endpoint
+        if (erpSource == ErpSource.GENERIC_API) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(
+                    400, "No ERP Source",
+                    "GENERIC_API does not fetch invoices from an ERP. " +
+                    "Use POST /api/v1/erp/dispatch/upload to supply PDFs directly.",
+                    "/api/v1/erp/dispatch"));
+        }
+
         // 1. Resolve the correct ERP adapter
-        ErpInvoicePort adapter = adapterRegistry.getAdapter(request.erpSource());
+        ErpInvoicePort adapter = adapterRegistry.getAdapter(erpSource);
 
         // 2. Fetch invoices from ERP (ACL normalises to canonical model)
         List<CanonicalInvoice> canonicalInvoices = adapter.fetchInvoices(

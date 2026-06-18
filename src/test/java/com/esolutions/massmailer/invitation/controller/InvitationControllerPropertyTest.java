@@ -72,7 +72,13 @@ class InvitationControllerPropertyTest {
         when(adminSessionTokenRepository.findByTokenAndExpiresAtAfter(anyString(), any()))
                 .thenReturn(java.util.Optional.empty());
 
-        ApiKeyAuthFilter apiKeyFilter = new ApiKeyAuthFilter(orgRepo, adminSessionTokenRepository);
+        com.esolutions.massmailer.organization.repository.OrgSessionTokenRepository orgSessionTokenRepository =
+                mock(com.esolutions.massmailer.organization.repository.OrgSessionTokenRepository.class);
+        when(orgSessionTokenRepository.findByTokenAndExpiresAtAfter(anyString(), any()))
+                .thenReturn(java.util.Optional.empty());
+
+        ApiKeyAuthFilter apiKeyFilter = new ApiKeyAuthFilter(orgRepo,
+                adminSessionTokenRepository, orgSessionTokenRepository);
 
         // Role-enforcement filter: mirrors SecurityConfig rule for /api/v1/my/**
         Filter roleEnforcementFilter = new OrgRoleEnforcementFilter();

@@ -3,11 +3,15 @@ package com.esolutions.massmailer.peppol.controller;
 import com.esolutions.massmailer.peppol.model.PeppolDeliveryRecord;
 import com.esolutions.massmailer.peppol.model.PeppolDeliveryRecord.DeliveryStatus;
 import com.esolutions.massmailer.peppol.repository.PeppolDeliveryRecordRepository;
+import com.esolutions.massmailer.security.OrgPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -78,7 +82,12 @@ public class OrgDeliveryDashboardController {
                     """)
     @ApiResponse(responseCode = "200", description = "Stats returned")
     @GetMapping(value = "/peppol-stats", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<PeppolDeliveryStats> getPeppolStats(@PathVariable UUID orgId) {
+    public ResponseEntity<PeppolDeliveryStats> getPeppolStats(
+            @AuthenticationPrincipal OrgPrincipal principal,
+            @PathVariable UUID orgId) {
+        if (!canAccessOrg(principal, orgId)) {
+            return ResponseEntity.notFound().build();
+        }
 
         long totalDispatched = deliveryRepo.countByOrganizationId(orgId);
         long delivered = deliveryRepo.countByOrganizationIdAndStatus(orgId, DeliveryStatus.DELIVERED);
@@ -108,7 +117,12 @@ public class OrgDeliveryDashboardController {
             description = "Returns all PeppolDeliveryRecord entries with status=FAILED for the organisation.")
     @ApiResponse(responseCode = "200", description = "Failed deliveries returned")
     @GetMapping(value = "/failed-deliveries", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<PeppolDeliveryRecord>> getFailedDeliveries(@PathVariable UUID orgId) {
+    public ResponseEntity<List<PeppolDeliveryRecord>> getFailedDeliveries(
+            @AuthenticationPrincipal OrgPrincipal principal,
+            @PathVariable UUID orgId) {
+        if (!canAccessOrg(principal, orgId)) {
+            return ResponseEntity.notFound().build();
+        }
         List<PeppolDeliveryRecord> failed =
                 deliveryRepo.findByOrganizationIdAndStatus(orgId, DeliveryStatus.FAILED);
         return ResponseEntity.ok(failed);
@@ -134,8 +148,12 @@ public class OrgDeliveryDashboardController {
     @ApiResponse(responseCode = "404", description = "Delivery record not found")
     @PostMapping(value = "/retry/{deliveryRecordId}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> retryDelivery(
+            @AuthenticationPrincipal OrgPrincipal principal,
             @PathVariable UUID orgId,
             @PathVariable UUID deliveryRecordId) {
+        if (!canAccessOrg(principal, orgId)) {
+            return ResponseEntity.notFound().build();
+        }
 
         Optional<PeppolDeliveryRecord> opt = deliveryRepo.findById(deliveryRecordId);
         if (opt.isEmpty()) {
@@ -197,5 +215,19 @@ public class OrgDeliveryDashboardController {
         return byDate.entrySet().stream()
                 .map(e -> new DailyDeliveryCount(e.getKey(), e.getValue()[0], e.getValue()[1]))
                 .collect(Collectors.toList());
+    }
+
+    private boolean isAdmin() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(a -> a.equals("ROLE_ADMIN"));
+    }
+
+    private boolean canAccessOrg(OrgPrincipal principal, UUID orgId) {
+        if (principal == null) return true; // unauthenticated requests blocked by Spring Security
+        if (isAdmin()) return true;
+        return principal.orgId().equals(orgId);
     }
 }

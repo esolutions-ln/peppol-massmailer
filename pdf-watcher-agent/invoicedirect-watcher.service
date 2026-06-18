@@ -1,0 +1,31 @@
+[Unit]
+Description=InvoiceDirect PDF Watcher Agent
+Documentation=https://ap.invoicedirect.biz
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=invoicedirect
+Group=invoicedirect
+
+WorkingDirectory=/opt/invoicedirect/watcher
+ExecStart=/usr/bin/java \
+    --enable-preview \
+    -Dwatcher.config=/opt/invoicedirect/watcher/watcher.properties \
+    -Dwatcher.log.dir=/opt/invoicedirect/watcher/logs \
+    -jar /opt/invoicedirect/watcher/pdf-watcher-agent-1.0.0.jar
+
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=15
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/invoicedirect/watcher
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

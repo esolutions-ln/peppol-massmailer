@@ -2,10 +2,15 @@ package com.esolutions.massmailer.controller;
 
 import com.esolutions.massmailer.dto.MailDtos.*;
 import com.esolutions.massmailer.model.DeliveryResult;
+import com.esolutions.massmailer.model.EmailTemplate;
+import com.esolutions.massmailer.repository.EmailTemplateRepository;
+import com.esolutions.massmailer.security.OrgPrincipal;
+import com.esolutions.massmailer.service.CustomTemplateRenderer;
 import com.esolutions.massmailer.service.PdfAttachmentResolver;
 import com.esolutions.massmailer.service.PdfAttachmentResolver.ResolvedAttachment;
 import com.esolutions.massmailer.service.SmtpSendService;
 import com.esolutions.massmailer.service.TemplateRenderService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -23,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Single-invoice email endpoint for real-time dispatch from POS / ERP.
@@ -45,15 +51,21 @@ public class SingleMailController {
     private final TemplateRenderService templateService;
     private final PdfAttachmentResolver pdfResolver;
     private final ObjectMapper objectMapper;
+    private final EmailTemplateRepository emailTemplateRepo;
+    private final CustomTemplateRenderer customRenderer;
 
     public SingleMailController(SmtpSendService smtpService,
                                  TemplateRenderService templateService,
                                  PdfAttachmentResolver pdfResolver,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 EmailTemplateRepository emailTemplateRepo,
+                                 CustomTemplateRenderer customRenderer) {
         this.smtpService = smtpService;
         this.templateService = templateService;
         this.pdfResolver = pdfResolver;
         this.objectMapper = objectMapper;
+        this.emailTemplateRepo = emailTemplateRepo;
+        this.customRenderer = customRenderer;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -273,6 +285,7 @@ public class SingleMailController {
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SingleMailResponse> sendInvoice(
+            @AuthenticationPrincipal OrgPrincipal principal,
             @Valid @RequestBody SingleInvoiceMailRequest request) {
 
         // ── 1. Resolve PDF attachment ──
@@ -294,14 +307,23 @@ public class SingleMailController {
         // ── 2. Build template variables (merge invoice metadata) ──
         var vars = buildTemplateVars(request);
 
-        // ── 3. Render HTML body ──
-        String html = templateService.render(request.templateName(), vars, Map.of());
+        // ── 3. Render HTML body — prefer a custom DB template when available ──
+        EmailTemplate custom = resolveCustomTemplate(principal, request.emailTemplateId());
+        String subject = request.subject();
+        String html;
+        if (custom != null) {
+            subject = customRenderer.substitute(custom.getSubject(), vars);
+            html = customRenderer.renderHtmlBody(custom.getBody(), vars);
+        } else {
+            html = templateService.render(request.templateName(), vars, Map.of());
+        }
 
-        // ── 4. Send via SMTP with PDF attachment ──
+        // ── 4. Send via SMTP/Brevo with PDF attachment ──
         DeliveryResult result = smtpService.sendWithFallback(
                 request.to(), request.recipientName(),
-                request.subject(), html,
-                request.invoiceNumber(), pdf);
+                subject, html,
+                request.invoiceNumber(), pdf,
+                request.customerAccountNumber(), request.customerTinNumber());
 
         // ── 5. Pattern match on sealed result ──
         return switch (result) {
@@ -364,6 +386,7 @@ public class SingleMailController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SingleMailResponse> sendInvoiceWithUpload(
+            @AuthenticationPrincipal OrgPrincipal principal,
             @RequestPart("pdf") MultipartFile pdfFile,
             @RequestPart("metadata") String metadataJson) {
 
@@ -400,11 +423,20 @@ public class SingleMailController {
 
         // ── 3. Build template vars, render, send ──
         var vars = buildTemplateVars(request);
-        String html = templateService.render(request.templateName(), vars, Map.of());
+        EmailTemplate custom = resolveCustomTemplate(principal, request.emailTemplateId());
+        String subject = request.subject();
+        String html;
+        if (custom != null) {
+            subject = customRenderer.substitute(custom.getSubject(), vars);
+            html = customRenderer.renderHtmlBody(custom.getBody(), vars);
+        } else {
+            html = templateService.render(request.templateName(), vars, Map.of());
+        }
         DeliveryResult result = smtpService.sendWithFallback(
                 request.to(), request.recipientName(),
-                request.subject(), html,
-                request.invoiceNumber(), pdf);
+                subject, html,
+                request.invoiceNumber(), pdf,
+                request.customerAccountNumber(), request.customerTinNumber());
 
         return switch (result) {
             case DeliveryResult.Delivered d -> ResponseEntity.ok(new SingleMailResponse(
@@ -439,5 +471,21 @@ public class SingleMailController {
         if (r.variables() != null) vars.putAll(r.variables());
 
         return vars;
+    }
+
+    /**
+     * Returns a custom email template scoped to the authenticated org, in priority order:
+     *   1. Explicit emailTemplateId on the request
+     *   2. The org's default template
+     * Returns null when no auth context, no explicit id, and no org default exists —
+     * in which case callers fall back to the static Thymeleaf template.
+     */
+    private EmailTemplate resolveCustomTemplate(OrgPrincipal principal, UUID explicitId) {
+        if (principal == null || principal.org() == null) return null;
+        UUID orgId = principal.org().getId();
+        if (explicitId != null) {
+            return emailTemplateRepo.findByIdAndOrganizationId(explicitId, orgId).orElse(null);
+        }
+        return emailTemplateRepo.findFirstByOrganizationIdAndIsDefaultTrue(orgId).orElse(null);
     }
 }

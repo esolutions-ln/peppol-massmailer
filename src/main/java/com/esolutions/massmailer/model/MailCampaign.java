@@ -34,6 +34,10 @@ public class MailCampaign {
     /** The organization that owns this campaign — used for metering and source tracking */
     private UUID organizationId;
 
+    /** Optional HTTPS callback URL for campaign completion webhook */
+    @Column(length = 2048)
+    private String callbackUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default

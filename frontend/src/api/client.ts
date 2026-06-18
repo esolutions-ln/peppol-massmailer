@@ -1,10 +1,12 @@
 import axios, { AxiosResponse } from 'axios'
 import type {
-  Organization, OrgUser, CustomerContact, Campaign, CampaignDetail,
-  InvoiceRecord, RateProfile, BillingPeriodSummary, UsageRecord,
-  CostEstimate, OrgStats, AccessPoint, PeppolDelivery,
-  PeppolInboundDoc, PeppolHealth, ParticipantLink, CreateParticipantLinkRequest,
-  PeppolDeliveryStats, PeppolInvitation, TokenValidationResponse
+  Organization, OrgUser, CustomerContact, Customer, Contact,
+  Campaign, CampaignDetail, InvoiceRecord, RateProfile,
+  BillingPeriodSummary, UsageRecord, CostEstimate, OrgStats,
+  AccessPoint, PeppolDelivery, PeppolInboundDoc, PeppolHealth,
+  ParticipantLink, CreateParticipantLinkRequest,
+  PeppolDeliveryStats, PeppolInvitation, TokenValidationResponse,
+  PageResponse, OrgMember, OrgLoginResponse, OrgMemberRole
 } from '../types'
 
 const BASE = '/api/v1'
@@ -20,6 +22,27 @@ axios.interceptors.request.use(config => {
   return config
 })
 
+// On 401 the stored token is invalid/expired — clear the session and bounce to login.
+// 403 is *not* cleared: the caller is authenticated, just lacks the role; let pages handle it.
+axios.interceptors.response.use(
+  res => res,
+  err => {
+    if (err?.response?.status === 401) {
+      try {
+        const session = JSON.parse(localStorage.getItem('id_session') ?? 'null')
+        if (session) {
+          localStorage.removeItem('id_session')
+          const target = session.role === 'admin' ? '/admin/login' : '/login'
+          if (!window.location.pathname.endsWith(target)) {
+            window.location.assign(target)
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    return Promise.reject(err)
+  }
+)
+
 function authHeaders(apiKey?: string): Record<string, string> {
   return apiKey ? { 'X-API-Key': apiKey } : {}
 }
@@ -28,12 +51,69 @@ function authHeaders(apiKey?: string): Record<string, string> {
 export const adminLogin = (username: string, password: string): Promise<AxiosResponse<{ token: string; name: string }>> =>
   axios.post(`${BASE}/admin/login`, { username, password })
 
+// ─── Org Member Auth ──────────────────────────────────────────────────────────
+export const orgMemberLogin = (
+  slug: string, email: string, password: string
+): Promise<AxiosResponse<OrgLoginResponse>> =>
+  axios.post(`${BASE}/org/login`, { slug, email, password })
+
+export const orgMemberLogout = (): Promise<AxiosResponse<void>> =>
+  axios.post(`${BASE}/org/logout`)
+
+// ─── Org Members (managed by ORG_ADMIN) ───────────────────────────────────────
+export const listOrgMembers = (): Promise<AxiosResponse<OrgMember[]>> =>
+  axios.get(`${BASE}/my/members`)
+
+export const createOrgMember = (data: {
+  email: string; password: string; displayName?: string; role: OrgMemberRole
+}): Promise<AxiosResponse<OrgMember>> =>
+  axios.post(`${BASE}/my/members`, data)
+
+export const updateOrgMemberRole = (
+  memberId: string, role: OrgMemberRole
+): Promise<AxiosResponse<OrgMember>> =>
+  axios.put(`${BASE}/my/members/${memberId}/role`, { role })
+
+export const setOrgMemberActive = (
+  memberId: string, active: boolean
+): Promise<AxiosResponse<OrgMember>> =>
+  axios.put(`${BASE}/my/members/${memberId}/active`, { active })
+
+export const resetOrgMemberPassword = (
+  memberId: string, password: string
+): Promise<AxiosResponse<void>> =>
+  axios.put(`${BASE}/my/members/${memberId}/password`, { password })
+
+export const deleteOrgMember = (memberId: string): Promise<AxiosResponse<void>> =>
+  axios.delete(`${BASE}/my/members/${memberId}`)
+
 // ─── Organizations ────────────────────────────────────────────────────────────
 export const registerOrg = (data: Partial<Organization> & { user: OrgUser }): Promise<AxiosResponse<Organization>> =>
   axios.post(`${BASE}/organizations`, data)
 
 export const listOrgs = (): Promise<AxiosResponse<Organization[]>> =>
   axios.get(`${BASE}/organizations`)
+
+export interface PagedResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export const listOrgsPaged = (
+  params: { page?: number; size?: number; search?: string; sort?: string; dir?: 'asc' | 'desc' }
+): Promise<AxiosResponse<PagedResponse<Organization>>> => {
+  const query: Record<string, string | number> = {
+    page: params.page ?? 0,
+    size: params.size ?? 20,
+  }
+  if (params.search) query.search = params.search
+  if (params.sort) query.sort = params.sort
+  if (params.dir) query.dir = params.dir
+  return axios.get(`${BASE}/organizations`, { params: query })
+}
 
 export const getOrgById = (id: string): Promise<AxiosResponse<Organization>> =>
   axios.get(`${BASE}/organizations/${id}`)
@@ -52,23 +132,28 @@ export const deactivateOrg = (id: string): Promise<AxiosResponse<Organization>> 
 
 // ─── Customers ────────────────────────────────────────────────────────────────
 export const registerCustomer = (
-  orgId: string, data: Partial<CustomerContact>, apiKey?: string
-): Promise<AxiosResponse<CustomerContact>> =>
+  orgId: string, data: Partial<Customer> & { email?: string; name?: string; phone?: string }, apiKey?: string
+): Promise<AxiosResponse<Customer>> =>
   axios.post(`${BASE}/organizations/${orgId}/customers`, data, { headers: authHeaders(apiKey) })
 
 export const updateCustomer = (
-  orgId: string, customerId: string, data: Partial<CustomerContact>, apiKey?: string
-): Promise<AxiosResponse<CustomerContact>> =>
+  orgId: string, customerId: string, data: Partial<Customer> & { email?: string; name?: string; phone?: string }, apiKey?: string
+): Promise<AxiosResponse<Customer>> =>
   axios.put(`${BASE}/organizations/${orgId}/customers/${customerId}`, data, { headers: authHeaders(apiKey) })
 
 export const listCustomers = (
-  orgId: string, apiKey?: string
-): Promise<AxiosResponse<CustomerContact[]>> =>
-  axios.get(`${BASE}/organizations/${orgId}/customers`, { headers: authHeaders(apiKey) })
+  orgId: string, apiKey?: string, params?: { page?: number; size?: number; sort?: string; dir?: string; search?: string }
+): Promise<AxiosResponse<PageResponse<Customer>>> =>
+  axios.get(`${BASE}/organizations/${orgId}/customers`, { headers: authHeaders(apiKey), params })
+
+export const addCustomerContact = (
+  orgId: string, customerId: string, data: { email: string; name?: string; phone?: string }, apiKey?: string
+): Promise<AxiosResponse<Customer>> =>
+  axios.post(`${BASE}/organizations/${orgId}/customers/${customerId}/contacts`, data, { headers: authHeaders(apiKey) })
 
 export const getCustomerByEmail = (
   orgId: string, email: string, apiKey?: string
-): Promise<AxiosResponse<CustomerContact>> =>
+): Promise<AxiosResponse<Customer>> =>
   axios.get(`${BASE}/organizations/${orgId}/customers/by-email`, {
     headers: authHeaders(apiKey), params: { email }
   })
@@ -281,3 +366,42 @@ export const completeInvitation = (
 ): Promise<{ participantId: string; endpointUrl: string }> =>
   axios.post<{ participantId: string; endpointUrl: string }>(`${BASE}/invitations/${token}/complete`, data)
     .then(r => r.data)
+
+// ─── Email Templates ─────────────────────────────────────────────────────────
+export interface EmailTemplate {
+  id: string
+  name: string
+  subject: string
+  body: string
+  isDefault: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface EmailTemplateUpsert {
+  name: string
+  subject: string
+  body: string
+  isDefault?: boolean
+}
+
+export const listEmailTemplates = (apiKey?: string): Promise<AxiosResponse<EmailTemplate[]>> =>
+  axios.get(`${BASE}/my/email-templates`, { headers: authHeaders(apiKey) })
+
+export const createEmailTemplate = (
+  data: EmailTemplateUpsert, apiKey?: string
+): Promise<AxiosResponse<EmailTemplate>> =>
+  axios.post(`${BASE}/my/email-templates`, data, { headers: authHeaders(apiKey) })
+
+export const updateEmailTemplate = (
+  id: string, data: EmailTemplateUpsert, apiKey?: string
+): Promise<AxiosResponse<EmailTemplate>> =>
+  axios.put(`${BASE}/my/email-templates/${id}`, data, { headers: authHeaders(apiKey) })
+
+export const deleteEmailTemplate = (id: string, apiKey?: string): Promise<AxiosResponse<void>> =>
+  axios.delete(`${BASE}/my/email-templates/${id}`, { headers: authHeaders(apiKey) })
+
+export const setDefaultEmailTemplate = (
+  id: string, apiKey?: string
+): Promise<AxiosResponse<EmailTemplate>> =>
+  axios.post(`${BASE}/my/email-templates/${id}/set-default`, {}, { headers: authHeaders(apiKey) })

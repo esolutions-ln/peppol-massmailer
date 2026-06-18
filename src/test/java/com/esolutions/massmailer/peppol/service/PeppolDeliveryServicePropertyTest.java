@@ -161,7 +161,7 @@ class PeppolDeliveryServicePropertyTest {
 
         // ── UBL builder ──
         UblInvoiceBuilder ublBuilder = mock(UblInvoiceBuilder.class);
-        when(ublBuilder.build(any(CanonicalInvoice.class), any(Organization.class)))
+        when(ublBuilder.build(any(CanonicalInvoice.class), any(Organization.class), any(CustomerContact.class)))
                 .thenReturn("<Invoice>test</Invoice>");
 
         // ── Schematron validator — always passes ──
@@ -360,7 +360,7 @@ class PeppolDeliveryServicePropertyTest {
 
         // ── UBL builder ──
         UblInvoiceBuilder ublBuilder = mock(UblInvoiceBuilder.class);
-        when(ublBuilder.build(any(CanonicalInvoice.class), any(Organization.class)))
+        when(ublBuilder.build(any(CanonicalInvoice.class), any(Organization.class), any(CustomerContact.class)))
                 .thenReturn("<Invoice>test</Invoice>");
 
         // ── Schematron validator — returns fatal violations ──
@@ -510,7 +510,7 @@ class PeppolDeliveryServicePropertyTest {
 
         // ── UBL builder ──
         UblInvoiceBuilder ublBuilder = mock(UblInvoiceBuilder.class);
-        when(ublBuilder.build(any(CanonicalInvoice.class), any(Organization.class)))
+        when(ublBuilder.build(any(CanonicalInvoice.class), any(Organization.class), any(CustomerContact.class)))
                 .thenReturn("<Invoice>test</Invoice>");
 
         // ── Schematron validator — always passes ──

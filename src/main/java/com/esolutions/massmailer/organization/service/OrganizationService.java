@@ -6,13 +6,17 @@ import com.esolutions.massmailer.organization.dto.OrganizationDtos.OrgUserDto;
 import com.esolutions.massmailer.organization.dto.OrganizationDtos.RegisterOrgRequest;
 import com.esolutions.massmailer.organization.dto.OrganizationDtos.RegisterOrgResponse;
 import com.esolutions.massmailer.organization.exception.SlugAlreadyExistsException;
+import com.esolutions.massmailer.organization.model.OrgMemberRole;
 import com.esolutions.massmailer.organization.model.OrgUser;
 import com.esolutions.massmailer.organization.model.Organization;
 import com.esolutions.massmailer.organization.repository.OrgUserRepository;
 import com.esolutions.massmailer.organization.repository.OrganizationRepository;
+import com.esolutions.massmailer.organization.service.OrgMemberService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.UUID;
 import java.security.SecureRandom;
 
 /**
@@ -37,14 +41,17 @@ public class OrganizationService {
     private final OrganizationRepository orgRepo;
     private final OrgUserRepository orgUserRepo;
     private final RateProfileRepository rateProfileRepo;
+    private final OrgMemberService orgMemberService;
     private final SecureRandom secureRandom;
 
     public OrganizationService(OrganizationRepository orgRepo,
                                 OrgUserRepository orgUserRepo,
-                                RateProfileRepository rateProfileRepo) {
+                                RateProfileRepository rateProfileRepo,
+                                OrgMemberService orgMemberService) {
         this.orgRepo = orgRepo;
         this.orgUserRepo = orgUserRepo;
         this.rateProfileRepo = rateProfileRepo;
+        this.orgMemberService = orgMemberService;
         this.secureRandom = new SecureRandom();
     }
 
@@ -112,6 +119,22 @@ public class OrganizationService {
                     .email(request.user().emailAddress())
                     .build();
             orgUser = orgUserRepo.save(orgUser);
+
+            // 7b. Bootstrap an ORG_ADMIN platform login if a password was provided.
+            //     The API key (step 2) is still returned for ERP integration; this
+            //     just gives the registering human a way to sign in via the UI too.
+            String password = request.user().password();
+            if (password != null && !password.isBlank()) {
+                String displayName = (request.user().firstName() + " "
+                        + request.user().lastName()).trim();
+                orgMemberService.create(
+                        org.getId(),
+                        request.user().emailAddress(),
+                        password,
+                        displayName,
+                        OrgMemberRole.ORG_ADMIN
+                );
+            }
         }
 
         // 8. Return RegisterOrgResponse — apiKey shown once only (Requirement 1.7)
@@ -139,10 +162,103 @@ public class OrganizationService {
     // ── Private helpers ──────────────────────────────────────────────────────
 
     /**
+     * Rotates the API key for an organisation.
+     * The old key is kept as {@code previousApiKey} for a 5-minute grace period.
+     *
+     * @param orgId organisation UUID
+     * @return the new API key (shown once only)
+     * @throws IllegalArgumentException if organisation not found
+     */
+    @Transactional
+    public String rotateApiKey(UUID orgId) {
+        Organization org = orgRepo.findById(orgId)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found: " + orgId));
+
+        String newKey = generateApiKey();
+        org.setPreviousApiKey(org.getApiKey());
+        org.setApiKey(newKey);
+        org.setApiKeyCreatedAt(Instant.now());
+        orgRepo.save(org);
+
+        return newKey;
+    }
+
+    /**
+     * Full update of an organisation's editable fields. Non-null fields overwrite;
+     * null fields are left unchanged. Slug uniqueness is enforced when the slug changes.
+     * The PEPPOL participant ID is re-derived if VAT or TIN changes and no explicit
+     * participantId was supplied.
+     */
+    @Transactional
+    public Organization update(UUID id,
+                               String name, String slug,
+                               String senderEmail, String senderDisplayName,
+                               String accountsEmail, String companyAddress,
+                               String primaryErpSource, String erpTenantId,
+                               String vatNumber, String tinNumber,
+                               String peppolParticipantId,
+                               DeliveryMode deliveryMode,
+                               Organization.OrgStatus status) {
+        Organization org = orgRepo.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found: " + id));
+
+        if (slug != null && !slug.isBlank() && !slug.equalsIgnoreCase(org.getSlug())) {
+            String normalized = slug.toLowerCase().trim();
+            if (orgRepo.existsBySlug(normalized)) {
+                throw new SlugAlreadyExistsException(normalized);
+            }
+            org.setSlug(normalized);
+        }
+
+        if (name != null && !name.isBlank()) org.setName(name.trim());
+        if (senderEmail != null && !senderEmail.isBlank()) org.setSenderEmail(senderEmail.trim());
+        if (senderDisplayName != null && !senderDisplayName.isBlank()) org.setSenderDisplayName(senderDisplayName.trim());
+        if (accountsEmail != null) org.setAccountsEmail(accountsEmail.isBlank() ? null : accountsEmail.trim());
+        if (companyAddress != null) org.setCompanyAddress(companyAddress.isBlank() ? null : companyAddress.trim());
+        if (primaryErpSource != null) org.setPrimaryErpSource(primaryErpSource.isBlank() ? null : primaryErpSource.trim());
+        if (erpTenantId != null) org.setErpTenantId(erpTenantId.isBlank() ? null : erpTenantId.trim());
+
+        boolean taxChanged = false;
+        if (vatNumber != null) { org.setVatNumber(vatNumber.isBlank() ? null : vatNumber.trim()); taxChanged = true; }
+        if (tinNumber != null) { org.setTinNumber(tinNumber.isBlank() ? null : tinNumber.trim()); taxChanged = true; }
+
+        if (peppolParticipantId != null && !peppolParticipantId.isBlank()) {
+            org.setPeppolParticipantId(peppolParticipantId.trim());
+        } else if (taxChanged) {
+            org.setPeppolParticipantId(derivePeppolParticipantId(org.getVatNumber(), org.getTinNumber()));
+        }
+
+        if (deliveryMode != null) org.setDeliveryMode(deliveryMode);
+        if (status != null) {
+            org.setStatus(status);
+            if (status == Organization.OrgStatus.DEACTIVATED || status == Organization.OrgStatus.SUSPENDED) {
+                org.setSuspendedAt(Instant.now());
+            } else if (status == Organization.OrgStatus.ACTIVE) {
+                org.setSuspendedAt(null);
+            }
+        }
+
+        return orgRepo.save(org);
+    }
+
+    /**
+     * Soft-deletes an organisation by flipping its status to DEACTIVATED.
+     * Dependent records (customers, campaigns, usage) are retained for audit.
+     */
+    @Transactional
+    public Organization deactivate(UUID id) {
+        Organization org = orgRepo.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found: " + id));
+        org.setStatus(Organization.OrgStatus.DEACTIVATED);
+        org.setSuspendedAt(Instant.now());
+        return orgRepo.save(org);
+    }
+
+    /**
      * Generates a 32-character lowercase hex string using SecureRandom.
      * 16 random bytes → 32 hex characters.
      */
-    String generateApiKey() {
+    public String generateApiKey() {
         byte[] bytes = new byte[API_KEY_BYTES];
         secureRandom.nextBytes(bytes);
         StringBuilder sb = new StringBuilder(32);

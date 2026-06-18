@@ -1,7 +1,10 @@
 package com.esolutions.massmailer.customer.repository;
 
 import com.esolutions.massmailer.customer.model.CustomerContact;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -13,7 +16,17 @@ public interface CustomerContactRepository extends JpaRepository<CustomerContact
 
     Optional<CustomerContact> findByOrganizationIdAndEmail(UUID organizationId, String email);
 
-    List<CustomerContact> findByOrganizationIdOrderByCreatedAtDesc(UUID organizationId);
+    Page<CustomerContact> findByOrganizationId(UUID organizationId, Pageable pageable);
+
+    @Query("""
+            SELECT c FROM CustomerContact c WHERE c.organizationId = :orgId AND
+            (LOWER(COALESCE(c.email, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR
+             LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR
+             LOWER(COALESCE(c.companyName, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR
+             LOWER(COALESCE(c.erpCustomerId, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR
+             LOWER(COALESCE(c.peppolParticipantId, '')) LIKE LOWER(CONCAT('%', :q, '%')))
+            """)
+    Page<CustomerContact> searchByOrganizationId(UUID orgId, String q, Pageable pageable);
 
     boolean existsByOrganizationIdAndEmail(UUID organizationId, String email);
 
@@ -38,4 +51,10 @@ public interface CustomerContactRepository extends JpaRepository<CustomerContact
     List<CustomerContact> findByOrganizationIdAndTinNumber(UUID organizationId, String tinNumber);
 
     List<CustomerContact> findByOrganizationIdAndBpn(UUID organizationId, String bpn);
+
+    // Cross-org lookups used when sender resolution has only the buyer's identifier
+    // (no authenticated org). Returns the most recent match across all orgs.
+    Optional<CustomerContact> findFirstByErpCustomerIdOrderByCreatedAtDesc(String erpCustomerId);
+
+    Optional<CustomerContact> findFirstByTinNumberOrderByCreatedAtDesc(String tinNumber);
 }

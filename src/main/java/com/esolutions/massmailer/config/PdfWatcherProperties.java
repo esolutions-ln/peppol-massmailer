@@ -14,10 +14,15 @@ import java.util.UUID;
  * {@code inboxDirectory/processed/} on success or {@code inboxDirectory/failed/}
  * on error.</p>
  *
+ * <p>When {@code emailedDirectory} is set, a copy of every successfully dispatched
+ * PDF is also placed there — giving the local ERP/print system a simple "sent"
+ * archive it can poll without touching the inbox.</p>
+ *
  * <p>Set via environment variables or {@code application.yml}:</p>
  * <pre>
  *   massmailer.pdf-watcher.enabled=true
  *   massmailer.pdf-watcher.inbox-directory=/var/lib/invoicedirect/inbox
+ *   massmailer.pdf-watcher.emailed-directory=/var/lib/invoicedirect/emailed
  *   massmailer.pdf-watcher.default-organization-id=&lt;orgId&gt;
  * </pre>
  */
@@ -36,6 +41,15 @@ public record PdfWatcherProperties(
          * automatically on startup.
          */
         String inboxDirectory,
+
+        /**
+         * Optional absolute path to an "emailed" archive directory.
+         * When set, a copy of each successfully dispatched PDF is placed here
+         * so the originating system can confirm the invoice was handed off.
+         * The directory is created automatically on startup if it does not exist.
+         * Leave blank to disable.
+         */
+        String emailedDirectory,
 
         /**
          * Default organization ID used when the sidecar JSON does not specify one.

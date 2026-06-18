@@ -78,11 +78,13 @@ class DeliveryModeRoutingPropertyTest {
      * from the mocked ERP adapter.
      */
     private ErpDispatchRequest dispatchRequest(UUID orgId) {
+        // SAGE_INTACCT exercises the ERP-fetch path; GENERIC_API is short-circuited
+        // by ErpCampaignController.fetchAndDispatch and directed to /dispatch/upload.
         return new ErpDispatchRequest(
                 "test-campaign",
                 "Test Subject",
                 "invoice",
-                ErpSource.GENERIC_API,
+                ErpSource.SAGE_INTACCT,
                 "test-tenant",
                 List.of("INV-TEST-001"),
                 Map.of(),
@@ -151,7 +153,7 @@ class DeliveryModeRoutingPropertyTest {
         when(adapter.fetchInvoices(anyString(), anyList())).thenReturn(List.of(invoice()));
 
         ErpAdapterRegistry adapterRegistry = mock(ErpAdapterRegistry.class);
-        when(adapterRegistry.getAdapter(ErpSource.GENERIC_API)).thenReturn(adapter);
+        when(adapterRegistry.getAdapter(ErpSource.SAGE_INTACCT)).thenReturn(adapter);
 
         // ── Customer service — no-op upsert ──
         CustomerContactService customerService = mock(CustomerContactService.class);

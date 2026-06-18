@@ -6,6 +6,8 @@ import com.esolutions.massmailer.domain.model.CanonicalInvoice;
 import com.esolutions.massmailer.model.DeliveryMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -191,8 +193,11 @@ public class CustomerContactService {
     }
 
     @Transactional(readOnly = true)
-    public List<CustomerContact> listByOrg(UUID organizationId) {
-        return repo.findByOrganizationIdOrderByCreatedAtDesc(organizationId);
+    public Page<CustomerContact> listByOrg(UUID organizationId, String search, Pageable pageable) {
+        if (search == null || search.isBlank()) {
+            return repo.findByOrganizationId(organizationId, pageable);
+        }
+        return repo.searchByOrganizationId(organizationId, search.trim(), pageable);
     }
 
     @Transactional(readOnly = true)

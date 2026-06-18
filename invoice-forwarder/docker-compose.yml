@@ -1,0 +1,29 @@
+services:
+  invoice-forwarder:
+    build: .
+    container_name: invoice-forwarder
+    restart: unless-stopped
+    ports:
+      - "9099:9099"
+    environment:
+      FORWARDER_MAILER_URL: ${FORWARDER_MAILER_URL:-https://ap.invoicedirect.biz}
+      FORWARDER_MAILER_ADMIN_USER: ${FORWARDER_MAILER_ADMIN_USER}
+      FORWARDER_MAILER_ADMIN_PASS: ${FORWARDER_MAILER_ADMIN_PASS}
+      FORWARDER_DEFAULT_ORG_ID: ${FORWARDER_DEFAULT_ORG_ID}
+      FORWARDER_INBOX_DIR: /var/lib/invoicedirect/inbox
+      FORWARDER_PROCESSED_DIR: /var/lib/invoicedirect/inbox/processed
+      FORWARDER_FAILED_DIR: /var/lib/invoicedirect/inbox/failed
+      FORWARDER_LEDGER_PATH: /var/lib/invoicedirect/ledger.db
+      FORWARDER_BATCH_WINDOW_SECONDS: ${FORWARDER_BATCH_WINDOW_SECONDS:-30}
+      FORWARDER_STATUS_POLL_SECONDS: ${FORWARDER_STATUS_POLL_SECONDS:-60}
+    volumes:
+      - ${HOST_INBOX_DIR:-./inbox}:/var/lib/invoicedirect/inbox
+      - forwarder-data:/var/lib/invoicedirect
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9099/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  forwarder-data:

@@ -46,6 +46,7 @@ public class CampaignOrchestrator {
     private final ObjectMapper objectMapper;
     private final MeteringService meteringService;
     private final OrganizationRepository orgRepo;
+    private final WebhookDeliveryService webhookService;
 
     public CampaignOrchestrator(CampaignRepository campaignRepo,
                                  RecipientRepository recipientRepo,
@@ -56,7 +57,8 @@ public class CampaignOrchestrator {
                                  MailerProperties props,
                                  ObjectMapper objectMapper,
                                  MeteringService meteringService,
-                                 OrganizationRepository orgRepo) {
+                                 OrganizationRepository orgRepo,
+                                 WebhookDeliveryService webhookService) {
         this.campaignRepo = campaignRepo;
         this.recipientRepo = recipientRepo;
         this.smtpService = smtpService;
@@ -67,6 +69,7 @@ public class CampaignOrchestrator {
         this.objectMapper = objectMapper;
         this.meteringService = meteringService;
         this.orgRepo = orgRepo;
+        this.webhookService = webhookService;
     }
 
     // ══════════════════════════════════════════════
@@ -82,6 +85,7 @@ public class CampaignOrchestrator {
                 .templateVariablesJson(toJson(request.templateVariables()))
                 .totalRecipients(request.recipients().size())
                 .organizationId(request.organizationId())
+                .callbackUrl(request.callbackUrl())
                 .status(CampaignStatus.QUEUED)
                 .build();
 
@@ -160,6 +164,11 @@ public class CampaignOrchestrator {
 
         campaign.markCompleted();
         campaignRepo.save(campaign);
+
+        // Fire webhook if callback URL was provided
+        if (campaign.getCallbackUrl() != null && !campaign.getCallbackUrl().isBlank()) {
+            webhookService.sendCampaignCompleted(campaign);
+        }
 
         log.info("Campaign '{}' completed: sent={}, failed={}, skipped={}",
                 campaign.getName(), campaign.getSentCount(),
@@ -358,6 +367,18 @@ public class CampaignOrchestrator {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<CampaignResponse> listCampaignsByOrganization(UUID orgId) {
+        return campaignRepo.findByOrganizationIdOrderByCreatedAtDesc(orgId).stream()
+                .map(this::toCampaignResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean campaignBelongsToOrg(UUID campaignId, UUID orgId) {
+        return campaignRepo.findByIdAndOrganizationId(campaignId, orgId).isPresent();
+    }
+
     // ══════════════════════════════════════════════
     //  Bridge: CanonicalInvoice → CampaignRequest
     // ══════════════════════════════════════════════
@@ -422,7 +443,7 @@ public class CampaignOrchestrator {
                 })
                 .toList();
 
-        return new CampaignRequest(campaignName, subject, templateName, templateVars, organizationId, recipients);
+        return new CampaignRequest(campaignName, subject, templateName, templateVars, organizationId, null, recipients);
     }
 
     // ══════════════════════════════════════════════

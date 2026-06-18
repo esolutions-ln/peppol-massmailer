@@ -4,6 +4,7 @@ import com.esolutions.massmailer.billing.service.BillingService;
 import com.esolutions.massmailer.model.MailCampaign;
 import com.esolutions.massmailer.model.MailRecipient;
 import com.esolutions.massmailer.model.MailRecipient.RecipientStatus;
+import com.esolutions.massmailer.organization.service.OrganizationService;
 import com.esolutions.massmailer.repository.CampaignRepository;
 import com.esolutions.massmailer.repository.RecipientRepository;
 import com.esolutions.massmailer.security.OrgPrincipal;
@@ -40,13 +41,16 @@ public class OrgInvoiceDashboardController {
     private final CampaignRepository campaignRepo;
     private final RecipientRepository recipientRepo;
     private final BillingService billingService;
+    private final OrganizationService orgService;
 
     public OrgInvoiceDashboardController(CampaignRepository campaignRepo,
                                           RecipientRepository recipientRepo,
-                                          BillingService billingService) {
+                                          BillingService billingService,
+                                          OrganizationService orgService) {
         this.campaignRepo = campaignRepo;
         this.recipientRepo = recipientRepo;
         this.billingService = billingService;
+        this.orgService = orgService;
     }
 
     // ── Response records ──
@@ -319,6 +323,28 @@ public class OrgInvoiceDashboardController {
     public ResponseEntity<?> getBillingHistory(
             @AuthenticationPrincipal OrgPrincipal principal) {
         return ResponseEntity.ok(billingService.getOrgBillingHistory(principal.orgId()));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  POST /api/v1/my/rotate-api-key — Rotate organisation API key
+    // ═══════════════════════════════════════════════════════════════
+
+    @Operation(summary = "Rotate your organisation API key",
+            description = """
+                    Generates a new API key and invalidates the old one after a 5-minute grace period.
+                    The new key is returned exactly once — store it securely.
+                    """
+    )
+    @PostMapping(value = "/rotate-api-key", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Map<String, String>> rotateApiKey(
+            @AuthenticationPrincipal OrgPrincipal principal) {
+
+        String newKey = orgService.rotateApiKey(principal.orgId());
+        return ResponseEntity.ok(Map.of(
+                "message", "API key rotated successfully",
+                "apiKey", newKey,
+                "gracePeriodSeconds", "300"
+        ));
     }
 
     // ── Mappers ──

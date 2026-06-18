@@ -32,13 +32,13 @@ export default function AdminCampaignsPage() {
   return (
     <>
       <div className="topbar">
-        <span className="topbar-title">All Campaigns</span>
+        <span className="topbar-title">All Invoices Sent</span>
         <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw size={14} /> Refresh</button>
       </div>
       <div className="content">
         <div className="page-header">
-          <h2>All Campaigns</h2>
-          <p>Platform-wide campaign overview</p>
+          <h2>All Invoices Sent</h2>
+          <p>Platform-wide dispatch overview</p>
         </div>
         <div className="card">
           <div className="mb-4">

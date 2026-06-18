@@ -21,7 +21,11 @@ public class OrganizationDtos {
             @NotBlank String firstName,
             @NotBlank String lastName,
             String jobTitle,
-            @NotBlank @Email String emailAddress
+            @NotBlank @Email String emailAddress,
+            /** Optional. When supplied (min 8 chars), an ORG_ADMIN member is
+             *  created on registration so the user can sign in with email + password
+             *  in addition to the org's integration API key. */
+            String password
     ) {}
 
     /** Read-only view of the org contact — returned in responses. */

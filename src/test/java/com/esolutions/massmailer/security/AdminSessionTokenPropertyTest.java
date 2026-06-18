@@ -107,10 +107,11 @@ class AdminSessionTokenPropertyTest {
                 .build();
 
         withUser(user, () -> {
-            // Create a valid (non-expired) session token directly in the DB
-            String tokenValue = UUID.randomUUID().toString();
+            // Create a valid (non-expired) session token directly in the DB. Only the
+            // SHA-256 hash is stored — the client always presents the raw value.
+            String tokenValue = AdminTokens.generateRawToken();
             AdminSessionToken sessionToken = AdminSessionToken.builder()
-                    .token(tokenValue)
+                    .token(AdminTokens.hashToken(tokenValue))
                     .adminUser(adminUserRepository.findByUsername(uniqueUsername).orElseThrow())
                     .expiresAt(Instant.now().plus(8, ChronoUnit.HOURS))
                     .build();
@@ -167,10 +168,11 @@ class AdminSessionTokenPropertyTest {
         withUser(user, () -> {
             RestTemplate restTemplate = new RestTemplate();
 
-            // Case (a): Expired token — expiresAt is 1 second in the past
-            String expiredTokenValue = UUID.randomUUID().toString();
+            // Case (a): Expired token — expiresAt is 1 second in the past.
+            // Store only the hash; the client presents the raw value.
+            String expiredTokenValue = AdminTokens.generateRawToken();
             AdminSessionToken expiredToken = AdminSessionToken.builder()
-                    .token(expiredTokenValue)
+                    .token(AdminTokens.hashToken(expiredTokenValue))
                     .adminUser(adminUserRepository.findByUsername(uniqueUsername).orElseThrow())
                     .expiresAt(Instant.now().minusSeconds(1))
                     .build();
@@ -257,9 +259,10 @@ class AdminSessionTokenPropertyTest {
                     .as("Login must return a non-blank token")
                     .isNotBlank();
 
-            // Look up the persisted token to check its expiresAt
+            // Look up the persisted token by HASH — only the hash is stored.
             AdminSessionToken persistedToken = adminSessionTokenRepository
-                    .findByTokenAndExpiresAtAfter(loginResponse.token(), Instant.now().minusSeconds(1))
+                    .findByTokenAndExpiresAtAfter(AdminTokens.hashToken(loginResponse.token()),
+                            Instant.now().minusSeconds(1))
                     .orElseThrow(() -> new AssertionError("Issued token not found in repository"));
 
             int configuredHours = adminProperties.getTokenExpiryHours();

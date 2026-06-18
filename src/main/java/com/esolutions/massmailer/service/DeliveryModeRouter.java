@@ -3,61 +3,56 @@ package com.esolutions.massmailer.service;
 import com.esolutions.massmailer.customer.repository.CustomerContactRepository;
 import com.esolutions.massmailer.model.DeliveryMode;
 import com.esolutions.massmailer.organization.repository.OrganizationRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
 /**
- * Resolves the effective {@link DeliveryMode} for a given recipient within an organization.
+ * Resolves the effective delivery mode for an invoice recipient.
  *
- * <p>Precedence (highest to lowest):
+ * <p>Resolution order:</p>
  * <ol>
- *   <li>Customer-level override — {@code CustomerContact.deliveryMode} when non-null</li>
- *   <li>Organization default — {@code Organization.deliveryMode}</li>
- *   <li>System fallback — {@code EMAIL}</li>
+ *   <li>Customer-level override (if non-null)</li>
+ *   <li>Organisation default (if non-null)</li>
+ *   <li>Fallback to {@code EMAIL}</li>
  * </ol>
- *
- * <p>Satisfies Requirements 11.1, 11.2, 11.3.
  */
 @Service
 public class DeliveryModeRouter {
-
-    private static final Logger log = LoggerFactory.getLogger(DeliveryModeRouter.class);
 
     private final OrganizationRepository orgRepo;
     private final CustomerContactRepository customerRepo;
 
     public DeliveryModeRouter(OrganizationRepository orgRepo,
-                              CustomerContactRepository customerRepo) {
+                               CustomerContactRepository customerRepo) {
         this.orgRepo = orgRepo;
         this.customerRepo = customerRepo;
     }
 
     /**
-     * Resolves the effective delivery mode for a recipient.
+     * Resolves the delivery mode for a recipient.
      *
-     * @param organizationId the owning organization's UUID (must not be null)
-     * @param recipientEmail the recipient's email address
-     * @return the effective {@link DeliveryMode} — never null
+     * @param orgId organisation UUID
+     * @param email recipient email address
+     * @return effective delivery mode
      */
-    public DeliveryMode resolveDeliveryMode(UUID organizationId, String recipientEmail) {
-        // Determine org-level default (fallback to EMAIL if org not found or mode is null)
-        DeliveryMode orgMode = orgRepo.findById(organizationId)
-                .map(org -> org.getDeliveryMode() != null ? org.getDeliveryMode() : DeliveryMode.EMAIL)
-                .orElse(DeliveryMode.EMAIL);
+    public DeliveryMode resolveDeliveryMode(UUID orgId, String email) {
+        var customerOpt = customerRepo.findByOrganizationIdAndEmail(orgId, email);
+        if (customerOpt.isPresent()) {
+            var customerMode = customerOpt.get().getDeliveryMode();
+            if (customerMode != null) {
+                return customerMode;
+            }
+        }
 
-        // Check for customer-level override
-        return customerRepo.findByOrganizationIdAndEmail(organizationId, recipientEmail)
-                .filter(contact -> contact.getDeliveryMode() != null)
-                .map(contact -> {
-                    log.debug("Customer override for {}: {}", recipientEmail, contact.getDeliveryMode());
-                    return contact.getDeliveryMode();
-                })
-                .orElseGet(() -> {
-                    log.debug("Using org default for {}: {}", recipientEmail, orgMode);
-                    return orgMode;
-                });
+        var orgOpt = orgRepo.findById(orgId);
+        if (orgOpt.isPresent()) {
+            var orgMode = orgOpt.get().getDeliveryMode();
+            if (orgMode != null) {
+                return orgMode;
+            }
+        }
+
+        return DeliveryMode.EMAIL;
     }
 }

@@ -7,6 +7,9 @@ interface AuthContextValue {
   logout: () => void
   isAdmin: boolean
   isOrg: boolean
+  isOrgAdmin: boolean
+  isOrgViewer: boolean
+  canManageMembers: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -26,8 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
   }
 
+  const isAdmin = session?.role === 'admin'
+  const isOrgAdmin = session?.role === 'org' && (session.memberRole == null || session.memberRole === 'ORG_ADMIN')
+  const isOrgViewer = session?.role === 'org_viewer'
+  const isOrg = isOrgAdmin || isOrgViewer
+  // Member management requires the full ORG role (legacy API key or ORG_ADMIN member).
+  const canManageMembers = isOrgAdmin
+
   return (
-    <AuthContext.Provider value={{ session, login, logout, isAdmin: session?.role === 'admin', isOrg: session?.role === 'org' }}>
+    <AuthContext.Provider value={{ session, login, logout, isAdmin, isOrg, isOrgAdmin, isOrgViewer, canManageMembers }}>
       {children}
     </AuthContext.Provider>
   )

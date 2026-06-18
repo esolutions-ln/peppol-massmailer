@@ -1,31 +1,74 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: massmailer
+      POSTGRES_USER: ${DB_USER:-mailer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mailer} -d massmailer"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   mass-mailer:
     build: .
+    entrypoint: ["java", "--enable-preview", "-Xmx1g", "-Dserver.port=9199", "-jar", "app.jar"]
     ports:
       - "127.0.0.1:9199:9199"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/massmailer
-      DB_USER: mailer
+      # ── Database ──
+      DB_URL: jdbc:postgresql://postgres:5432/massmailer
+      DB_USER: ${DB_USER:-mailer}
       DB_PASS: ${POSTGRES_PASSWORD}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USERNAME: ${SMTP_USERNAME}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
+
+      # ── Fail-fast secrets (no defaults — must be set in .env) ──
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
+
+      # ── Mail ──
       MAIL_FROM: ${MAIL_FROM}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+
+      # ── App / tuning ──
       APP_BASE_URL: ${APP_BASE_URL}
       RATE_LIMIT: ${RATE_LIMIT}
       BATCH_SIZE: ${BATCH_SIZE}
-      ADMIN_USERNAME: ${ADMIN_USERNAME}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      GOOGLE_OAUTH2_CREDENTIALS_PATH: ${GOOGLE_OAUTH2_CREDENTIALS_PATH}
-      GOOGLE_OAUTH2_REFRESH_TOKEN: ${GOOGLE_OAUTH2_REFRESH_TOKEN}
+
+      # ── PDF inbox (defence-in-depth path allowlist) ──
+      PDF_INBOX_BASE: /var/lib/invoicedirect/invoices
+      MAX_PDF_BYTES: ${MAX_PDF_BYTES:-10485760}
+
+      # ── Schema management — "validate" prevents accidental schema drift ──
+      HIBERNATE_DDL_AUTO: ${HIBERNATE_DDL_AUTO:-validate}
+
+      # ── Swagger — opt-in only ──
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+
+      # ── Google OAuth2 (only used if massmailer.gmail-oauth2.enabled=true) ──
+      GOOGLE_OAUTH2_CREDENTIALS_PATH: ${GOOGLE_OAUTH2_CREDENTIALS_PATH:-/etc/mailer/google-oauth-credentials.json}
+      GOOGLE_OAUTH2_REFRESH_TOKEN: ${GOOGLE_OAUTH2_REFRESH_TOKEN:-}
+    volumes:
+      - ./inbox:/var/lib/invoicedirect/invoices:ro
+      - ./target/mass-mailer-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9199/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 60s
+      retries: 30
+      start_period: 240s
     restart: unless-stopped
 
   frontend:
@@ -36,3 +79,6 @@ services:
       mass-mailer:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  postgres_data:

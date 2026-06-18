@@ -13,7 +13,6 @@ import com.esolutions.massmailer.organization.repository.OrganizationRepository;
 import com.esolutions.massmailer.peppol.service.PeppolDeliveryService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,7 +27,9 @@ import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * PDF Folder Watcher — monitors a configured inbox directory and dispatches
@@ -86,7 +87,11 @@ public class PdfFolderWatcherService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfFolderWatcherService.class);
 
-    /** Sidecar JSON schema — all fields optional except invoiceNumber and recipientEmail. */
+    /**
+     * Sidecar JSON schema — all fields optional except recipientEmail.
+     * vatNumber and tinNumber are optional; include whichever is present on the PDF.
+     * If both are absent, the customer is registered by email only.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record InvoiceSidecar(
             UUID organizationId,
@@ -107,6 +112,10 @@ public class PdfFolderWatcherService {
             String globalInvoiceCounter,
             String verificationCode,
             String qrCodeUrl,
+            /** Zimbabwe VAT number — include if present on the fiscalised PDF */
+            String vatNumber,
+            /** Zimbabwe TIN — include if VAT number is absent */
+            String tinNumber,
             Map<String, Object> templateVariables
     ) {}
 
@@ -118,14 +127,22 @@ public class PdfFolderWatcherService {
     private final CampaignOrchestrator orchestrator;
     private final PeppolDeliveryService peppolService;
 
+    /** Tracks invoice numbers dispatched in this JVM session to prevent same-run duplicates. */
+    private final Set<String> dispatchedInSession = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Counters for operational visibility. */
+    private final AtomicLong processedCount = new AtomicLong();
+    private final AtomicLong failedCount = new AtomicLong();
+
     public PdfFolderWatcherService(PdfWatcherProperties props,
                                     CustomerContactService customerService,
                                     CustomerContactRepository customerRepo,
                                     OrganizationRepository orgRepo,
                                     CampaignOrchestrator orchestrator,
-                                    PeppolDeliveryService peppolService) {
+                                    PeppolDeliveryService peppolService,
+                                    ObjectMapper objectMapper) {
         this.props = props;
-        this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        this.objectMapper = objectMapper;
         this.customerService = customerService;
         this.customerRepo = customerRepo;
         this.orgRepo = orgRepo;
@@ -155,6 +172,10 @@ public class PdfFolderWatcherService {
         try {
             Files.createDirectories(inboxPath.resolve("processed"));
             Files.createDirectories(inboxPath.resolve("failed"));
+            if (hasEmailedDir()) {
+                Files.createDirectories(Path.of(props.emailedDirectory()));
+                log.info("PdfFolderWatcher: emailed archive → {}", props.emailedDirectory());
+            }
         } catch (IOException e) {
             log.error("PdfFolderWatcher: cannot create subdirectories in {}: {}", inboxPath, e.getMessage());
             return;
@@ -173,8 +194,6 @@ public class PdfFolderWatcherService {
 
                     Path fullPath = inboxPath.resolve(filename);
 
-                    // Short pause — lets the ERP finish writing both the PDF and sidecar
-                    Thread.sleep(600);
                     processFile(fullPath);
                 }
                 if (!key.reset()) break;
@@ -198,10 +217,18 @@ public class PdfFolderWatcherService {
             return;
         }
 
-        if (!Files.exists(sidecarPath)) {
-            log.warn("PdfFolderWatcher: no sidecar JSON for {} — skipping (place {}.json alongside the PDF)",
-                    pdfPath.getFileName(), baseName);
+        // Idempotency guard — skip if already dispatched in this session
+        if (dispatchedInSession.contains(baseName)) {
+            log.warn("PdfFolderWatcher: {} already dispatched this session — skipping duplicate", baseName);
+            return;
+        }
+
+        // Wait for the sidecar to appear (ERP may write PDF first, JSON a moment later)
+        if (!awaitSidecar(sidecarPath)) {
+            log.warn("PdfFolderWatcher: no sidecar JSON for {} after waiting — moving to failed/ " +
+                     "(place {}.json alongside the PDF)", pdfPath.getFileName(), baseName);
             moveToSubdir(pdfPath, "failed");
+            failedCount.incrementAndGet();
             return;
         }
 
@@ -209,14 +236,40 @@ public class PdfFolderWatcherService {
             InvoiceSidecar sidecar = objectMapper.readValue(sidecarPath.toFile(), InvoiceSidecar.class);
             validateSidecar(sidecar, baseName);
             dispatch(pdfPath, sidecar);
+            copyToEmailed(pdfPath);              // archive copy before the move consumes the file
             moveToSubdir(pdfPath, "processed");
             moveToSubdir(sidecarPath, "processed");
-            log.info("PdfFolderWatcher: dispatched {} → {}", baseName, sidecar.recipientEmail());
+            dispatchedInSession.add(baseName);
+            long total = processedCount.incrementAndGet();
+            log.info("PdfFolderWatcher: dispatched {} → {} [total={}]",
+                     baseName, sidecar.recipientEmail(), total);
         } catch (Exception e) {
-            log.error("PdfFolderWatcher: failed to process {}: {}", pdfPath.getFileName(), e.getMessage(), e);
+            long failures = failedCount.incrementAndGet();
+            log.error("PdfFolderWatcher: failed to process {} [totalFailures={}]: {}",
+                      pdfPath.getFileName(), failures, e.getMessage(), e);
             moveToSubdir(pdfPath, "failed");
             moveToSubdir(sidecarPath, "failed");
         }
+    }
+
+    /**
+     * Waits up to ~5 seconds for the sidecar JSON to appear.
+     * Uses short exponential-backoff intervals rather than a fixed sleep,
+     * so fast writers (local disk) return immediately while slow ones
+     * (network share, VM host) still get adequate time.
+     */
+    private boolean awaitSidecar(Path sidecarPath) {
+        int[] backoffMs = {100, 200, 400, 800, 1500, 2000};
+        for (int delay : backoffMs) {
+            if (Files.exists(sidecarPath)) return true;
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return Files.exists(sidecarPath);
     }
 
     private void validateSidecar(InvoiceSidecar sidecar, String pdfBaseName) {
@@ -259,8 +312,26 @@ public class PdfFolderWatcherService {
                 sidecar.templateVariables() != null ? sidecar.templateVariables() : Map.of()
         );
 
-        // Register / refresh the customer record before dispatch
-        customerService.upsertAll(orgId, List.of(invoice));
+        // Register / refresh the customer record before dispatch.
+        // Pass VAT/TIN through to the full upsert only when present in the sidecar.
+        boolean hasVatOrTin = (sidecar.vatNumber() != null && !sidecar.vatNumber().isBlank())
+                || (sidecar.tinNumber() != null && !sidecar.tinNumber().isBlank());
+
+        if (hasVatOrTin) {
+            customerService.upsert(
+                    orgId,
+                    invoice.recipientEmail(),
+                    invoice.recipientName(),
+                    invoice.recipientCompany(),
+                    ErpSource.GENERIC_API.name(),
+                    null,                   // deliveryMode — inherit from org
+                    sidecar.vatNumber(),
+                    sidecar.tinNumber(),
+                    null                    // peppolParticipantId — derived from VAT/TIN inside the service
+            );
+        } else {
+            customerService.upsertAll(orgId, List.of(invoice));
+        }
 
         // Resolve effective delivery mode: customer override → org default
         DeliveryMode orgMode = orgRepo.findById(orgId)
@@ -297,6 +368,28 @@ public class PdfFolderWatcherService {
 
     private UUID resolveOrgId(InvoiceSidecar sidecar) {
         return sidecar.organizationId() != null ? sidecar.organizationId() : props.defaultOrganizationId();
+    }
+
+    private boolean hasEmailedDir() {
+        return props.emailedDirectory() != null && !props.emailedDirectory().isBlank();
+    }
+
+    /**
+     * Copies the dispatched PDF into the configured emailed directory.
+     * A file with the same name that already exists is replaced, so re-runs
+     * of the same invoice number always reflect the latest version.
+     * No-op when emailedDirectory is not configured.
+     */
+    private void copyToEmailed(Path pdfPath) {
+        if (!hasEmailedDir()) return;
+        try {
+            Path target = Path.of(props.emailedDirectory()).resolve(pdfPath.getFileName());
+            Files.copy(pdfPath, target, StandardCopyOption.REPLACE_EXISTING);
+            log.debug("PdfFolderWatcher: archived {} → emailed/", pdfPath.getFileName());
+        } catch (IOException e) {
+            // Non-fatal — the email was still sent; just warn so ops can investigate
+            log.warn("PdfFolderWatcher: could not copy {} to emailed/: {}", pdfPath.getFileName(), e.getMessage());
+        }
     }
 
     private void moveToSubdir(Path file, String subdir) {

@@ -116,6 +116,16 @@ public class AccessPoint {
     @Column(length = 256)
     private String deliveryAuthToken;
 
+    /**
+     * Shared HMAC-SHA256 secret used to authenticate inbound traffic from this AP.
+     * The peer signs the request body and presents the signature in
+     * {@code X-PEPPOL-Signature}. When null/blank, inbound traffic from this AP
+     * is rejected (fail-closed) — there is no implicit trust of the
+     * {@code X-PEPPOL-Sender-ID} header alone.
+     */
+    @Column(length = 256)
+    private String inboundSharedSecret;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private AccessPointStatus status = AccessPointStatus.ACTIVE;

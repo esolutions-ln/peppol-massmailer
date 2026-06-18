@@ -1,11 +1,37 @@
 // ─── Auth ─────────────────────────────────────────────────────────────────────
+export type OrgMemberRole = 'ORG_ADMIN' | 'ORG_VIEWER'
+
 export interface Session {
-  role: 'admin' | 'org'
+  role: 'admin' | 'org' | 'org_viewer'
   name: string
   apiKey: string
   orgId?: string
   slug?: string
   username?: string
+  memberId?: string
+  email?: string
+  memberRole?: OrgMemberRole
+}
+
+export interface OrgMember {
+  id: string
+  organizationId: string
+  email: string
+  displayName?: string
+  role: OrgMemberRole
+  active: boolean
+  createdAt: string
+  lastLoginAt?: string
+}
+
+export interface OrgLoginResponse {
+  token: string
+  orgId: string
+  orgSlug: string
+  memberId: string
+  email: string
+  displayName?: string
+  role: OrgMemberRole
 }
 
 // ─── Delivery ─────────────────────────────────────────────────────────────────
@@ -42,6 +68,15 @@ export interface Organization {
   user?: OrgUser
 }
 
+// ─── Pagination ────────────────────────────────────────────────
+export interface PageResponse<T> {
+  content: T[]
+  totalPages: number
+  totalElements: number
+  number: number
+  size: number
+}
+
 // ─── Customers ────────────────────────────────────────────────────────────────
 export interface CustomerContact {
   id: string
@@ -50,13 +85,13 @@ export interface CustomerContact {
   phone?: string
   companyName?: string
   tradingName?: string
-  erpCustomerId?: string        // ERP-native customer key (e.g. Exor TenantCode)
+  erpCustomerId?: string
   erpSource?: string
-  vatNumber?: string            // Zimbabwe VAT number e.g. 12345678
-  tinNumber?: string            // Zimbabwe TIN number e.g. 1234567890
-  bpn?: string                  // ZIMRA Business Partner Number
-  peppolParticipantId?: string  // derived: 0190:ZW{vatNumber} or 0190:ZW{tinNumber}
-  deliveryMode?: DeliveryMode   // overrides org default for this customer
+  vatNumber?: string
+  tinNumber?: string
+  bpn?: string
+  peppolParticipantId?: string
+  deliveryMode?: DeliveryMode
   addressLine1?: string
   addressLine2?: string
   city?: string
@@ -65,6 +100,37 @@ export interface CustomerContact {
   totalDeliveryFailures: number
   unsubscribed: boolean
   lastInvoiceSentAt?: string
+}
+
+export interface Contact {
+  id: string
+  email: string
+  name?: string
+  phone?: string
+}
+
+export interface Customer {
+  id: string
+  organizationId?: string
+  erpCustomerId?: string
+  companyName?: string
+  tradingName?: string
+  erpSource?: string
+  deliveryMode?: DeliveryMode
+  peppolParticipantId?: string
+  vatNumber?: string
+  tinNumber?: string
+  bpn?: string
+  addressLine1?: string
+  addressLine2?: string
+  city?: string
+  country?: string
+  unsubscribed: boolean
+  totalInvoicesSent: number
+  totalDeliveryFailures: number
+  lastInvoiceSentAt?: string
+  createdAt?: string
+  contacts: Contact[]
 }
 
 // Derives the Zimbabwe PEPPOL participant ID from VAT or TIN

@@ -193,6 +193,7 @@ class FirstMutualPropertiesSeedTest {
                         .content("""
                                 {
                                   "email": "tenant@acmecorp.co.zw",
+                                  "erpCustomerId": "ACME-TENANT-001",
                                   "name": "Acme Corporation",
                                   "companyName": "Acme Corporation (Pvt) Ltd",
                                   "erpSource": "GENERIC_API",
@@ -201,7 +202,7 @@ class FirstMutualPropertiesSeedTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.email").value("tenant@acmecorp.co.zw"))
+                .andExpect(jsonPath("$.contacts[0].email").value("tenant@acmecorp.co.zw"))
                 .andExpect(jsonPath("$.peppolParticipantId").value("0190:ZW100012345"))
                 .andExpect(jsonPath("$.deliveryMode").value("EMAIL"));
     }
@@ -219,7 +220,7 @@ class FirstMutualPropertiesSeedTest {
         mockMvc.perform(get("/api/v1/organizations/" + orgId + "/customers")
                         .header("X-API-Key", apiKey))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").value("tenant@acmecorp.co.zw"))
-                .andExpect(jsonPath("$[0].companyName").value("Acme Corporation (Pvt) Ltd"));
+                .andExpect(jsonPath("$.content[0].contacts[0].email").value("tenant@acmecorp.co.zw"))
+                .andExpect(jsonPath("$.content[0].companyName").value("Acme Corporation (Pvt) Ltd"));
     }
 }

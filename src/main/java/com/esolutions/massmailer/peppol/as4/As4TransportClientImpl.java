@@ -84,34 +84,43 @@ public class As4TransportClientImpl implements As4TransportClient {
 
     @Override
     public As4DeliveryResult send(As4Message message) {
+        // ── Fail-closed gates ──
+        // 1. Refuse to emit AS4 traffic without sender + receiver crypto material.
+        requireCryptoMaterial(message);
+        // 2. Refuse to emit AS4 without payload encryption — the wire format that would
+        //    otherwise leave this method is signed-but-unencrypted, which is non-compliant
+        //    with the PEPPOL Transport Infrastructure AS4 Profile 2.0.
+        throw new As4TransportException(
+                "AS4 payload encryption (XML-Enc via WSS4J) is not implemented in this build. " +
+                "AS4 delivery is therefore disabled to prevent emitting a non-compliant envelope. " +
+                "Set simplifiedHttpDelivery=true on the receiver AccessPoint for private-network " +
+                "HTTPS delivery, or finish the WSS4J integration (org.apache.wss4j:wss4j-ws-security-dom).");
+    }
+
+    private static void requireCryptoMaterial(As4Message message) {
+        if (message.senderPrivateKey() == null || message.senderCert() == null) {
+            throw new As4TransportException(
+                    "AS4 transport requires the sender's X.509 private key and certificate. " +
+                    "Provision sender AP credentials before enabling AS4 (or set " +
+                    "simplifiedHttpDelivery=true on the receiver AccessPoint for internal traffic).");
+        }
+        if (message.receiverCert() == null) {
+            throw new As4TransportException(
+                    "AS4 transport requires the receiver's X.509 certificate for payload encryption. " +
+                    "Register the receiver AP's certificate in the eRegistry before AS4 delivery.");
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private As4DeliveryResult buildSignAndPost(As4Message message) throws Exception {
+        // Preserved for re-enabling AS4 once WSS4J encryption is wired up.
         String messageId = "msg-" + UUID.randomUUID() + "@invoicedirect.biz";
         log.info("AS4 send: messageId={} → {}", messageId, message.receiverEndpointUrl());
-
-        try {
-            // 1. Build ebMS 3.0 SOAP envelope as DOM
-            Document soapDoc = buildSoapEnvelope(message, messageId);
-
-            // 2. Sign the SOAP message with sender's X.509 private key (XML-DSIG)
-            signSoapMessage(soapDoc, message.senderPrivateKey(), message.senderCert());
-
-            // 3. TODO: Encrypt payload for receiver's public certificate (XML-Enc / WSS4J)
-            //    To enable full PEPPOL AS4 encryption, add WSS4J dependency:
-            //      org.apache.wss4j:wss4j-ws-security-dom
-            //    and replace this comment with WSEncryptionPart + WSSecEncrypt logic.
-            //    The message is currently signed (integrity) but not encrypted.
-
-            // 4. Serialise DOM → String
-            String soapXml = serialiseDocument(soapDoc);
-            log.debug("AS4 SOAP envelope built ({} chars)", soapXml.length());
-
-            // 5. POST to receiver endpoint
-            return postAndParseMdn(soapXml, message.receiverEndpointUrl(), messageId);
-
-        } catch (As4TransportException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new As4TransportException("AS4 envelope build/sign failed: " + ex.getMessage(), ex);
-        }
+        Document soapDoc = buildSoapEnvelope(message, messageId);
+        signSoapMessage(soapDoc, message.senderPrivateKey(), message.senderCert());
+        // TODO: encryptPayload(soapDoc, message.receiverCert()) — WSSecEncrypt
+        String soapXml = serialiseDocument(soapDoc);
+        return postAndParseMdn(soapXml, message.receiverEndpointUrl(), messageId);
     }
 
     // -------------------------------------------------------------------------

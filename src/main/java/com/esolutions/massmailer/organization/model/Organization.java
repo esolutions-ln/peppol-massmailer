@@ -45,6 +45,13 @@ public class Organization {
     @Column(nullable = false, unique = true, length = 128)
     private String apiKey;
 
+    /** Previous API key — valid during rotation grace period (5 min) */
+    @Column(length = 128)
+    private String previousApiKey;
+
+    /** Timestamp when the current apiKey was generated */
+    private Instant apiKeyCreatedAt;
+
     // ── Sender Identity (no-reply config per org) ──
 
     /** No-reply email address used as From header */

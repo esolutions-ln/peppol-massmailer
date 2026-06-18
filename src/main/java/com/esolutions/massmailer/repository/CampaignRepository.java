@@ -12,15 +12,11 @@ import java.util.UUID;
 @Repository
 public interface CampaignRepository extends JpaRepository<MailCampaign, UUID> {
 
-    List<MailCampaign> findByStatusOrderByCreatedAtDesc(CampaignStatus status);
+    Optional<MailCampaign> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
-    List<MailCampaign> findAllByOrderByCreatedAtDesc();
-
-    // ── Org-scoped queries for the invoice dashboard ──
     List<MailCampaign> findByOrganizationIdOrderByCreatedAtDesc(UUID organizationId);
 
-    List<MailCampaign> findByOrganizationIdAndStatusOrderByCreatedAtDesc(
-            UUID organizationId, CampaignStatus status);
+    List<MailCampaign> findByOrganizationIdAndStatusOrderByCreatedAtDesc(UUID organizationId, CampaignStatus status);
 
-    Optional<MailCampaign> findByIdAndOrganizationId(UUID id, UUID organizationId);
+    List<MailCampaign> findAllByOrderByCreatedAtDesc();
 }

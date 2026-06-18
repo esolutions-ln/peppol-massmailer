@@ -1,0 +1,277 @@
+%PDF-1.4
+%“Œ‹ž ReportLab Generated PDF document (opensource)
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/Contents 8 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 7 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+5 0 obj
+<<
+/PageMode /UseNone /Pages 7 0 R /Type /Catalog
+>>
+endobj
+6 0 obj
+<<
+/Author (\(anonymous\)) /CreationDate (D:20000101000000+00'00') /Creator (\(unspecified\)) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (ReportLab PDF Library - \(opensource\)) 
+  /Subject (\(unspecified\)) /Title (\(anonymous\)) /Trapped /False
+>>
+endobj
+7 0 obj
+<<
+/Count 1 /Kids [ 4 0 R ] /Type /Pages
+>>
+endobj
+8 0 obj
+<<
+/Length 4865
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+1 0 0 1 57.02362 762.8661 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 18 Tf 22 TL 183.1042 0 Td (TAX INVOICE) Tj T* -183.1042 0 Td ET
+Q
+Q
+q
+1 0 0 1 57.02362 744.8661 cm
+q
+BT 1 0 0 1 0 2 Tm 12 TL /F1 10 Tf 0 0 0 rg (Invoice No: ) Tj /F2 10 Tf (INV-UAT-2026-0001) Tj T* ET
+Q
+Q
+q
+1 0 0 1 57.02362 732.8661 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 2 Tm /F1 10 Tf 12 TL (Date: 2026-06-18) Tj T* ET
+Q
+Q
+q
+1 0 0 1 57.02362 715.8583 cm
+Q
+q
+1 0 0 1 56.69291 643.8583 cm
+q
+.827451 .827451 .827451 rg
+n 0 72 481.8898 -18 re f*
+0 0 0 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 59 Tm (Seller) Tj T* ET
+BT 1 0 0 1 246.9449 59 Tm (Buyer) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 6 41 Tm (eSolutions \(Pvt\) Ltd) Tj T* ET
+BT 1 0 0 1 6 29 Tm (TIN: 2000123456) Tj T* ET
+BT 1 0 0 1 6 17 Tm (VAT: 200012345A) Tj T* ET
+BT 1 0 0 1 246.9449 41 Tm (Acme Buyer Co.) Tj T* ET
+BT 1 0 0 1 246.9449 29 Tm (Attn: Lucky Ncube) Tj T* ET
+BT 1 0 0 1 246.9449 17 Tm (Email: lucky.ncube@gmail.com) Tj T* ET
+BT 1 0 0 1 246.9449 5 Tm (TIN: 2000999777) Tj T* ET
+q
+1 J
+1 j
+.501961 .501961 .501961 RG
+.5 w
+n 0 72 m 481.8898 72 l S
+n 0 0 m 481.8898 0 l S
+n 0 0 m 0 72 l S
+n 481.8898 0 m 481.8898 72 l S
+n 0 54 m 481.8898 54 l S
+n 240.9449 0 m 240.9449 72 l S
+Q
+Q
+Q
+q
+1 0 0 1 57.02362 626.8504 cm
+Q
+q
+1 0 0 1 56.69291 590.8504 cm
+q
+.827451 .827451 .827451 rg
+n 0 36 481.8898 -18 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 6 23 Tm (#) Tj T* ET
+BT 1 0 0 1 34.34646 23 Tm (Description) Tj T* ET
+BT 1 0 0 1 318.5975 23 Tm (Qty) Tj T* ET
+BT 1 0 0 1 387.2436 23 Tm (Unit) Tj T* ET
+BT 1 0 0 1 431.9798 23 Tm (Line Total) Tj T* ET
+BT 1 0 0 1 6 5 Tm (1) Tj T* ET
+BT 1 0 0 1 34.34646 5 Tm (Mass Mailer Annual Subscription) Tj T* ET
+BT 1 0 0 1 328.5975 5 Tm (1) Tj T* ET
+BT 1 0 0 1 366.1036 5 Tm (1,000.00) Tj T* ET
+BT 1 0 0 1 436.9698 5 Tm (1,000.00) Tj T* ET
+q
+1 J
+1 j
+.501961 .501961 .501961 RG
+.5 w
+n 0 36 m 481.8898 36 l S
+n 0 0 m 481.8898 0 l S
+n 0 0 m 0 36 l S
+n 481.8898 0 m 481.8898 36 l S
+n 0 18 m 481.8898 18 l S
+n 28.34646 0 m 28.34646 36 l S
+n 297.6378 0 m 297.6378 36 l S
+n 340.1575 0 m 340.1575 36 l S
+n 411.0236 0 m 411.0236 36 l S
+Q
+Q
+Q
+q
+1 0 0 1 57.02362 579.5118 cm
+Q
+q
+1 0 0 1 56.69291 525.5118 cm
+q
+.827451 .827451 .827451 rg
+n 0 18 481.8898 -18 re f*
+0 0 0 rg
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 6 41 Tm (Subtotal) Tj T* ET
+BT 1 0 0 1 413.0798 41 Tm (USD 1,000.00) Tj T* ET
+BT 1 0 0 1 6 23 Tm (VAT \(15%\)) Tj T* ET
+BT 1 0 0 1 421.4198 23 Tm (USD 150.00) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 5 Tm (TOTAL) Tj T* ET
+BT 1 0 0 1 413.0798 5 Tm (USD 1,150.00) Tj T* ET
+q
+1 J
+1 j
+.501961 .501961 .501961 RG
+.5 w
+n 0 54 m 481.8898 54 l S
+n 0 0 m 481.8898 0 l S
+n 0 0 m 0 54 l S
+n 481.8898 0 m 481.8898 54 l S
+n 0 36 m 481.8898 36 l S
+n 0 18 m 481.8898 18 l S
+n 368.5039 0 m 368.5039 54 l S
+Q
+Q
+Q
+q
+1 0 0 1 57.02362 502.8346 cm
+Q
+q
+1 0 0 1 57.02362 472.8346 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 4 Tm /F2 14 Tf 18 TL (Fiscalisation \(ZIMRA FDMS\)) Tj T* ET
+Q
+Q
+q
+1 0 0 1 56.69291 322.8346 cm
+q
+.827451 .827451 .827451 rg
+n 0 144 155.9055 -144 re f*
+0 0 0 rg
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 131 Tm (Device ID) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 131 Tm (1004212) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 113 Tm (Fiscal Device Serial) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 113 Tm (FDMS-UAT-001) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 95 Tm (Fiscal Day) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 95 Tm (142) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 77 Tm (Fiscal Invoice Number) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 77 Tm (FI-2026-87654) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 59 Tm (Global Receipt Number) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 59 Tm (GR-87654) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 41 Tm (Global Invoice Counter) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 41 Tm (87654) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 23 Tm (Verification Code) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 23 Tm (E960606BFCB6F08A) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 6 5 Tm (Verification URL) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 161.9055 5 Tm (https://fdms.zimra.co.zw/verify?inv=INV-UAT-2026-0001&code=E960606BFCB6F08A) Tj T* ET
+q
+1 J
+1 j
+.501961 .501961 .501961 RG
+.5 w
+n 0 144 m 481.8898 144 l S
+n 0 0 m 481.8898 0 l S
+n 0 0 m 0 144 l S
+n 481.8898 0 m 481.8898 144 l S
+n 0 126 m 481.8898 126 l S
+n 0 108 m 481.8898 108 l S
+n 0 90 m 481.8898 90 l S
+n 0 72 m 481.8898 72 l S
+n 0 54 m 481.8898 54 l S
+n 0 36 m 481.8898 36 l S
+n 0 18 m 481.8898 18 l S
+n 155.9055 0 m 155.9055 144 l S
+Q
+Q
+Q
+q
+1 0 0 1 57.02362 311.4961 cm
+Q
+q
+1 0 0 1 57.02362 287.4961 cm
+q
+0 0 0 rg
+BT 1 0 0 1 0 14 Tm /F1 10 Tf 12 TL (This invoice was issued through a ZIMRA-approved fiscal device and is signed in accordance with the) Tj T* (Fiscalisation Data Management System \(FDMS\) regulations.) Tj T* ET
+Q
+Q
+ 
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000061 00000 n 
+0000000102 00000 n 
+0000000209 00000 n 
+0000000321 00000 n 
+0000000524 00000 n 
+0000000592 00000 n 
+0000000872 00000 n 
+0000000931 00000 n 
+trailer
+<<
+/ID 
+[<93f779ecd1f2924a75b2cd56e4383cfa><93f779ecd1f2924a75b2cd56e4383cfa>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 6 0 R
+/Root 5 0 R
+/Size 9
+>>
+startxref
+5847
+%%EOF

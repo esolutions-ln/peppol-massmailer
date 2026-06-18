@@ -18,32 +18,34 @@ spring:
       enabled: true
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: no-reply@esolutions.co.zw
-    # Password is not used — OAuth2 XOAUTH2 token is injected at send time
+    host: ${SPRING_MAIL_HOST:smtp-relay.brevo.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:af02a6001@smtp-brevo.com}
+    # No default — must be set in env (.env / k8s secret). Startup fails fast otherwise.
+    password: ${SPRING_MAIL_PASSWORD:?SPRING_MAIL_PASSWORD environment variable is required}
     properties:
       mail:
         smtp:
           auth: true
-          auth.mechanisms: XOAUTH2
           starttls:
             enable: true
             required: true
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
-        from: no-reply@esolutions.co.zw
+        from: ${SPRING_MAIL_PROPERTIES_MAIL_FROM:no-reply@invoicedirect.biz}
     test-connection: false
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://postgres:5432/massmailer}
     username: ${DB_USER:mailer}
-    password: ${DB_PASS:mailer_secret}
+    # No default — production must provide DB_PASS; startup fails fast otherwise.
+    password: ${DB_PASS:?DB_PASS environment variable is required}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      # "validate" prevents accidental schema drift; override to "update" for local dev.
+      ddl-auto: ${HIBERNATE_DDL_AUTO:validate}
     open-in-view: false
     properties:
       hibernate:
@@ -56,35 +58,48 @@ spring:
     suffix: .html
     cache: true
 
-google:
-  service-account:
-    key-path: ${GOOGLE_SERVICE_ACCOUNT_KEY_PATH:}
-  oauth2:
-    credentials-path: ${GOOGLE_OAUTH2_CREDENTIALS_PATH:google-oauth-credentials.json}
-    # Obtain this refresh token by completing the OAuth2 consent flow once:
-    # https://developers.google.com/oauthplayground — scope: https://mail.google.com/
-    refresh-token: ${GOOGLE_OAUTH2_REFRESH_TOKEN:}
-
 massmailer:
-  from-address: no-reply@esolutions.co.zw
-  from-name: ${MAIL_FROM_NAME:eSolutions}
-  rate-limit: ${RATE_LIMIT:10}
+  from-address: ${MAIL_FROM_ADDRESS:no-reply@invoicedirect.biz}
+  from-name: ${MAIL_FROM_NAME:InvoiceDirect Mailer}
+  rate-limit: ${RATE_LIMIT:100}
   batch-size: ${BATCH_SIZE:50}
   max-retries: 3
   retry-backoff: 2000
   fiscal-validation-enabled: true
+  # Defence-in-depth path-traversal allowlist for file-path PDFs.
+  # Leave blank to disable file-path PDF resolution (forces Base64 mode).
+  pdf-inbox-base-path: ${PDF_INBOX_BASE:/var/lib/invoicedirect/invoices}
+  # Hard cap on decoded PDF size — protects against OOM via large Base64 payloads.
+  max-pdf-bytes: ${MAX_PDF_BYTES:10485760}   # 10 MB
   gmail-oauth2:
-    enabled: true
-  pdf-watcher:
+    enabled: false
+  # Brevo (Sendinblue) transactional email — when enabled, outbound mail is
+  # delivered via Brevo's HTTPS API instead of Spring's JavaMailSender.
+  brevo:
+    enabled: ${BREVO_ENABLED:false}
+    api-key: ${BREVO_API_KEY:}
+    base-url: ${BREVO_BASE_URL:https://api.brevo.com/v3}
+    timeout-seconds: ${BREVO_TIMEOUT_SECONDS:30}
+
+webhook:
+  # No default — production must provide a strong secret (>=32 chars).
+  secret: ${WEBHOOK_SECRET:?WEBHOOK_SECRET environment variable is required (>=32 chars)}
+
+pdf-watcher:
     # Set PDF_WATCHER_ENABLED=true and configure inbox-directory to activate.
     # Each PDF in the inbox must have a companion {invoiceNumber}.json sidecar.
     enabled: ${PDF_WATCHER_ENABLED:false}
     inbox-directory: ${PDF_WATCHER_INBOX:/var/lib/invoicedirect/inbox}
+    # Optional: copy of every successfully dispatched PDF is placed here.
+    # The originating ERP/print system can poll this folder as a "sent" confirmation.
+    # Leave blank or unset to disable.
+    emailed-directory: ${PDF_WATCHER_EMAILED:/var/lib/invoicedirect/emailed}
     default-organization-id: ${PDF_WATCHER_ORG_ID:}
 
 admin:
   username: ${ADMIN_USERNAME:admin}
-  password: ${ADMIN_PASSWORD:changeme}
+  # No default — bootstrap admin password must be provided by env. Fail fast otherwise.
+  password: ${ADMIN_PASSWORD:?ADMIN_PASSWORD environment variable is required}
   token-expiry-hours: ${ADMIN_TOKEN_EXPIRY_HOURS:8}
 
 management:
@@ -100,12 +115,13 @@ management:
       enabled: false
 
 springdoc:
+  # Swagger is OFF by default. Enable for dev with SWAGGER_ENABLED=true; never enable in prod.
   api-docs:
     path: /v3/api-docs
-    enabled: true
+    enabled: ${SWAGGER_ENABLED:false}
   swagger-ui:
     path: /swagger-ui.html
-    enabled: true
+    enabled: ${SWAGGER_ENABLED:false}
     tags-sorter: alpha
     operations-sorter: method
     try-it-out-enabled: true
@@ -116,8 +132,11 @@ springdoc:
   paths-to-match:
     - /api/**
     - /peppol/**
+    - /webhooks/**
   default-produces-media-type: application/json
   default-consumes-media-type: application/json
+  swagger-ui-config:
+    urls-primary-name: Mailer (PDF)
 
 logging:
   level:

@@ -1,5 +1,6 @@
 package com.esolutions.massmailer;
 
+import com.esolutions.massmailer.customer.service.ContactService;
 import com.esolutions.massmailer.dto.MailDtos.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
@@ -12,6 +13,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,12 +46,25 @@ class MassMailerIntegrationTest {
 
     @Autowired WebApplicationContext wac;
     @Autowired ObjectMapper objectMapper;
+    @Autowired ContactService contactService;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setup() {
         this.mockMvc = webAppContextSetup(wac).build();
+        // MockMvc here bypasses Spring Security's filter chain, so the SecurityContext
+        // is empty by default. The campaign controller defaults-deny on a null principal,
+        // so we install an admin auth context for the lifetime of the test.
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        "integration-test-admin", null,
+                        java.util.List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     /** Minimal valid PDF (header + empty body + xref + trailer) for testing */
@@ -104,7 +121,10 @@ class MassMailerIntegrationTest {
                 null, // pdfFilePath
                 pdfBase64,
                 "INV-2026-0042.pdf",
-                Map.of("companyName", "eSolutions", "accountsEmail", "accounts@esolutions.co.zw")
+                Map.of("companyName", "eSolutions", "accountsEmail", "accounts@esolutions.co.zw"),
+                null, // customerAccountNumber
+                null, // customerTinNumber
+                null  // emailTemplateId
         );
 
         mockMvc.perform(post("/api/v1/mail/invoice")
@@ -169,7 +189,10 @@ class MassMailerIntegrationTest {
                 tempPdf.toAbsolutePath().toString(), // file path
                 null, // no Base64
                 null, // filename derived from invoice number
-                Map.of("companyName", "InvoiceDirect")
+                Map.of("companyName", "InvoiceDirect"),
+                null,
+                null,
+                null
         );
 
         mockMvc.perform(post("/api/v1/mail/invoice")
@@ -195,6 +218,7 @@ class MassMailerIntegrationTest {
                 Map.of("companyName", "eSolutions",
                         "accountsEmail", "accounts@esolutions.co.zw",
                         "companyAddress", "123 Samora Machel Ave, Harare"),
+                null,
                 null,
                 List.of(
                         new InvoiceRecipientEntry(
@@ -231,13 +255,22 @@ class MassMailerIntegrationTest {
         String body = result.getResponse().getContentAsString();
         String campaignId = objectMapper.readTree(body).get("campaignId").asText();
 
-        // Wait for async dispatch
+        // Wait for async dispatch. The await polling lambda runs on a worker thread that
+        // does NOT inherit the test's ThreadLocal SecurityContext — install admin auth here too.
         await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
-            String statusBody = mockMvc.perform(get("/api/v1/campaigns/" + campaignId))
-                    .andReturn().getResponse().getContentAsString();
-            var statusNode = objectMapper.readTree(statusBody);
-            assertThat(statusNode.get("status").asText()).isIn("COMPLETED", "PARTIALLY_FAILED");
-            assertThat(statusNode.get("sent").asInt()).isEqualTo(3);
+            SecurityContextHolder.getContext().setAuthentication(
+                    new UsernamePasswordAuthenticationToken(
+                            "integration-test-admin", null,
+                            java.util.List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+            try {
+                String statusBody = mockMvc.perform(get("/api/v1/campaigns/" + campaignId))
+                        .andReturn().getResponse().getContentAsString();
+                var statusNode = objectMapper.readTree(statusBody);
+                assertThat(statusNode.get("status").asText()).isIn("COMPLETED", "PARTIALLY_FAILED");
+                assertThat(statusNode.get("sent").asInt()).isEqualTo(3);
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
         });
     }
 
@@ -254,6 +287,9 @@ class MassMailerIntegrationTest {
                 null,
                 Base64.getEncoder().encodeToString("NOT-A-PDF".getBytes()),
                 null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -263,6 +299,104 @@ class MassMailerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value("failed"))
                 .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("PDF")));
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("F-07 — Sibling contacts of the same customer are CC'd on invoice sends")
+    void shouldCcSiblingContactsOnInvoiceSend() throws Exception {
+        // Seed two contacts under the same customerId — A is the recipient, B is the sibling.
+        java.util.UUID customerId = java.util.UUID.randomUUID();
+        contactService.upsert(customerId, "alice.cc@example.com", "Alice CC", null);
+        contactService.upsert(customerId, "bob.cc@example.com", "Bob CC", null);
+
+        int receivedBefore = greenMail.getReceivedMessages().length;
+        String pdfBase64 = Base64.getEncoder().encodeToString(MINIMAL_PDF);
+
+        var request = new SingleInvoiceMailRequest(
+                "alice.cc@example.com",
+                "Alice CC",
+                "Invoice INV-CC-2026-0001",
+                "invoice",
+                "INV-CC-2026-0001",
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                new BigDecimal("100.00"),
+                new BigDecimal("15.00"),
+                "USD",
+                "FD-CC-001", "1", "0000001", "CCDD-1111",
+                null, null, pdfBase64, "INV-CC-2026-0001.pdf",
+                Map.of("companyName", "eSolutions"),
+                null, null, null
+        );
+
+        mockMvc.perform(post("/api/v1/mail/invoice")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("delivered"));
+
+        // GreenMail delivers one MimeMessage per envelope recipient — To + Cc both receive
+        // a copy. We expect two new deliveries: one for Alice (To) and one for Bob (Cc).
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
+                assertThat(greenMail.getReceivedMessages().length - receivedBefore)
+                        .as("Expected GreenMail to receive both To and Cc deliveries")
+                        .isGreaterThanOrEqualTo(2));
+
+        MimeMessage[] all = greenMail.getReceivedMessages();
+        MimeMessage ccMsg = null;
+        for (int i = all.length - 1; i >= receivedBefore; i--) {
+            if ("Invoice INV-CC-2026-0001".equals(all[i].getSubject())) {
+                ccMsg = all[i];
+                break;
+            }
+        }
+        assertThat(ccMsg).as("Could not find the CC test message in GreenMail").isNotNull();
+        assertThat(ccMsg.getHeader("Cc")).isNotNull();
+        assertThat(ccMsg.getHeader("Cc")[0]).contains("bob.cc@example.com");
+        assertThat(ccMsg.getHeader("To")[0]).contains("alice.cc@example.com");
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("F-07 — Single-contact customer produces no Cc header")
+    void shouldNotCcWhenCustomerHasSingleContact() throws Exception {
+        java.util.UUID customerId = java.util.UUID.randomUUID();
+        contactService.upsert(customerId, "solo@example.com", "Solo Buyer", null);
+
+        int receivedBefore = greenMail.getReceivedMessages().length;
+        String pdfBase64 = Base64.getEncoder().encodeToString(MINIMAL_PDF);
+
+        var request = new SingleInvoiceMailRequest(
+                "solo@example.com", "Solo Buyer",
+                "Invoice INV-SOLO-2026-0001", "invoice",
+                "INV-SOLO-2026-0001",
+                LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31),
+                new BigDecimal("50.00"), new BigDecimal("7.50"), "USD",
+                "FD-SOLO-1", "1", "0000002", "SOLO-2222",
+                null, null, pdfBase64, "INV-SOLO-2026-0001.pdf",
+                Map.of("companyName", "eSolutions"),
+                null, null, null
+        );
+
+        mockMvc.perform(post("/api/v1/mail/invoice")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
+                assertThat(greenMail.getReceivedMessages().length).isGreaterThan(receivedBefore));
+
+        MimeMessage[] all = greenMail.getReceivedMessages();
+        MimeMessage msg = null;
+        for (int i = all.length - 1; i >= receivedBefore; i--) {
+            if ("Invoice INV-SOLO-2026-0001".equals(all[i].getSubject())) {
+                msg = all[i];
+                break;
+            }
+        }
+        assertThat(msg).isNotNull();
+        assertThat(msg.getHeader("Cc")).as("Single-contact customer should have no Cc header").isNull();
     }
 
     @Test

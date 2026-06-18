@@ -2,6 +2,7 @@ package com.esolutions.massmailer.security.service;
 
 import com.esolutions.massmailer.security.AdminDtos.AdminLoginResponse;
 import com.esolutions.massmailer.security.AdminProperties;
+import com.esolutions.massmailer.security.AdminTokens;
 import com.esolutions.massmailer.security.model.AdminSessionToken;
 import com.esolutions.massmailer.security.model.AdminUser;
 import com.esolutions.massmailer.security.repository.AdminSessionTokenRepository;
@@ -14,7 +15,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.UUID;
 
 @Service
 public class AdminAuthService {
@@ -49,22 +49,23 @@ public class AdminAuthService {
                     "Invalid username or password");
         }
 
-        String token = UUID.randomUUID().toString();
+        String rawToken = AdminTokens.generateRawToken();
         Instant expiresAt = Instant.now().plus(adminProperties.getTokenExpiryHours(), ChronoUnit.HOURS);
 
         AdminSessionToken sessionToken = AdminSessionToken.builder()
-                .token(token)
+                .token(AdminTokens.hashToken(rawToken)) // only the hash is persisted
                 .adminUser(user)
                 .expiresAt(expiresAt)
                 .build();
 
         adminSessionTokenRepository.save(sessionToken);
 
-        return new AdminLoginResponse(token, user.getDisplayName());
+        // Return the raw token to the client — it is never stored server-side.
+        return new AdminLoginResponse(rawToken, user.getDisplayName());
     }
 
     @Transactional
-    public void logout(String token) {
-        adminSessionTokenRepository.deleteByToken(token);
+    public void logout(String rawToken) {
+        adminSessionTokenRepository.deleteByToken(AdminTokens.hashToken(rawToken));
     }
 }

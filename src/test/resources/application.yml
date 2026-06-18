@@ -22,6 +22,9 @@ spring:
             enable: false
             required: false
 
+webhook:
+  secret: test-webhook-secret-for-unit-tests-only
+
 google:
   oauth2:
     credentials-path: ""
@@ -38,6 +41,10 @@ massmailer:
   max-retries: 1
   retry-backoff: 100
   fiscal-validation-enabled: false
+  pdf-inbox-base-path: ${java.io.tmpdir}
+  max-pdf-bytes: 52428800   # 50 MB — relaxed for tests
+  gmail-oauth2:
+    enabled: false
   registration-rate-limit: 1000
 
 logging:

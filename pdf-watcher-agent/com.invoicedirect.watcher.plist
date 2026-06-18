@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.invoicedirect.watcher</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/java</string>
+        <string>--enable-preview</string>
+        <string>-Dwatcher.config=/opt/invoicedirect/watcher/watcher.properties</string>
+        <string>-Dwatcher.log.dir=/opt/invoicedirect/watcher/logs</string>
+        <string>-jar</string>
+        <string>/opt/invoicedirect/watcher/pdf-watcher-agent-1.0.0.jar</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/invoicedirect/watcher</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>CrashedLast</key>
+        <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/opt/invoicedirect/watcher/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/opt/invoicedirect/watcher/logs/stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>JAVA_HOME</key>
+        <string>/usr/local/openjdk-17</string>
+    </dict>
+</dict>
+</plist>

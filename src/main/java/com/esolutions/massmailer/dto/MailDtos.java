@@ -51,6 +51,11 @@ public final class MailDtos {
                     example = "d4f7a2c1-8b3e-4f5a-9c2d-1a2b3c4d5e6f")
             UUID organizationId,
 
+            @Schema(description = "Optional HTTPS callback URL for campaign completion webhook. " +
+                    "When provided, a signed POST is sent when the campaign finishes dispatch.",
+                    example = "https://erp.example.com/webhooks/campaign-completed")
+            String callbackUrl,
+
             @Schema(description = "List of invoice recipients — each carries their own PDF and fiscal metadata",
                     requiredMode = Schema.RequiredMode.REQUIRED, minLength = 1)
             @NotEmpty @Valid List<InvoiceRecipientEntry> recipients
@@ -212,7 +217,22 @@ public final class MailDtos {
             @Schema(description = "Additional template variables",
                     example = """
                             {"companyName": "eSolutions", "paymentInstructions": "<p>Bank: CBZ</p>"}""")
-            Map<String, Object> variables
+            Map<String, Object> variables,
+
+            @Schema(description = "Buyer's account number (= erpCustomerId). Used to resolve the " +
+                    "From address by looking up the customer's owning organisation when no auth context exists.",
+                    example = "CUST-001234")
+            String customerAccountNumber,
+
+            @Schema(description = "Buyer's TIN. Fallback lookup key for sender resolution when " +
+                    "customerAccountNumber is not provided.",
+                    example = "2000123456")
+            String customerTinNumber,
+
+            @Schema(description = "Optional custom email template id (from /api/v1/my/email-templates). " +
+                    "When omitted, the authenticated org's default custom template is used if one exists; " +
+                    "otherwise the static 'invoice' Thymeleaf template is used.")
+            UUID emailTemplateId
 
     ) {}
 
@@ -386,7 +406,10 @@ public final class MailDtos {
     @Schema(description = """
             Request to fetch invoices from a specific ERP system and dispatch them as an email campaign. \
             The Mass Mailer uses the appropriate adapter (Sage, QuickBooks, D365) to fetch invoice data \
-            and PDFs, then creates and dispatches the campaign automatically.""")
+            and PDFs, then creates and dispatches the campaign automatically.
+
+            When `erpSource` is omitted (or set to `GENERIC_API`), no ERP fetch is performed — \
+            use the `/api/v1/erp/dispatch/upload` endpoint to supply PDFs directly instead.""")
     public record ErpDispatchRequest(
 
             @Schema(description = "Campaign name for tracking",
@@ -402,25 +425,27 @@ public final class MailDtos {
             @NotBlank String templateName,
 
             @Schema(description = """
-                    ERP source system to fetch invoices from. Must match a configured adapter.
+                    ERP source system to fetch invoices from. Optional — defaults to `GENERIC_API` when omitted.
 
                     | Value | ERP System | Adapter |
                     |---|---|---|
                     | `SAGE_INTACCT` | Sage Intacct | XML API → ARINVOICE |
                     | `QUICKBOOKS_ONLINE` | QuickBooks Online | REST API → Invoice |
                     | `DYNAMICS_365` | Microsoft Dynamics 365 F&O / BC | OData → SalesInvoice |
-                    | `GENERIC_API` | Direct payload (no ERP fetch) | Use /api/v1/campaigns instead |
+                    | `ODOO` | Odoo 14+ | JSON-RPC → account.move |
+                    | `GENERIC_API` | No ERP fetch — use /api/v1/erp/dispatch/upload for PDF upload |
                     """,
-                    example = "SAGE_INTACCT", requiredMode = Schema.RequiredMode.REQUIRED)
+                    example = "SAGE_INTACCT", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
             ErpSource erpSource,
 
             @Schema(description = """
-                    ERP tenant / company identifier. Meaning varies by ERP:
+                    ERP tenant / company identifier. Required only when `erpSource` is a real ERP system.
                     - **Sage**: Company ID (e.g. 'ESOLUTIONS_ZW')
                     - **QuickBooks**: Realm ID (e.g. '4620816365182009070')
-                    - **D365**: Azure AD tenant ID or legal entity""",
-                    example = "ESOLUTIONS_ZW", requiredMode = Schema.RequiredMode.REQUIRED)
-            @NotBlank String tenantId,
+                    - **D365**: Azure AD tenant ID or legal entity
+                    - **Odoo**: Database name (e.g. 'acme-prod')""",
+                    example = "ESOLUTIONS_ZW", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+            String tenantId,
 
             @Schema(description = """
                     List of ERP-native invoice identifiers to fetch and dispatch. \

@@ -1,6 +1,7 @@
 package com.esolutions.massmailer.controller;
 
 import com.esolutions.massmailer.dto.MailDtos.*;
+import com.esolutions.massmailer.security.OrgPrincipal;
 import com.esolutions.massmailer.service.CampaignOrchestrator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,6 +15,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -190,9 +194,20 @@ public class CampaignController {
     )
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CampaignCreatedResponse> createAndDispatch(
+            @AuthenticationPrincipal OrgPrincipal principal,
             @Valid @RequestBody CampaignRequest request) {
 
-        var campaign = orchestrator.createCampaign(request);
+        // Enforce tenant isolation: org users can only create campaigns for their own org
+        CampaignRequest scopedRequest = request;
+        if (principal != null && !isAdmin()) {
+            scopedRequest = new CampaignRequest(
+                    request.name(), request.subject(), request.templateName(),
+                    request.templateVariables(), principal.orgId(), request.callbackUrl(),
+                    request.recipients()
+            );
+        }
+
+        var campaign = orchestrator.createCampaign(scopedRequest);
         orchestrator.dispatchCampaign(campaign.getId());
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
@@ -252,9 +267,13 @@ public class CampaignController {
     })
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CampaignResponse> getStatus(
+            @AuthenticationPrincipal OrgPrincipal principal,
             @Parameter(description = "Campaign UUID returned from the create endpoint", required = true,
                     example = "d4f7a2c1-8b3e-4f5a-9c2d-1a2b3c4d5e6f")
             @PathVariable UUID id) {
+        if (!canAccessCampaign(principal, id)) {
+            return ResponseEntity.notFound().build();
+        }
         return ResponseEntity.ok(orchestrator.getCampaignStatus(id));
     }
 
@@ -276,7 +295,11 @@ public class CampaignController {
             )
     )
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<CampaignResponse>> listAll() {
+    public ResponseEntity<List<CampaignResponse>> listAll(
+            @AuthenticationPrincipal OrgPrincipal principal) {
+        if (principal != null && !isAdmin()) {
+            return ResponseEntity.ok(orchestrator.listCampaignsByOrganization(principal.orgId()));
+        }
         return ResponseEntity.ok(orchestrator.listCampaigns());
     }
 
@@ -315,9 +338,30 @@ public class CampaignController {
     })
     @PostMapping(value = "/{id}/retry")
     public ResponseEntity<Void> retryFailed(
+            @AuthenticationPrincipal OrgPrincipal principal,
             @Parameter(description = "Campaign UUID", required = true)
             @PathVariable UUID id) {
+        if (!canAccessCampaign(principal, id)) {
+            return ResponseEntity.notFound().build();
+        }
         orchestrator.retryFailed(id);
         return ResponseEntity.accepted().build();
+    }
+
+    private boolean isAdmin() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(a -> a.equals("ROLE_ADMIN"));
+    }
+
+    private boolean canAccessCampaign(OrgPrincipal principal, UUID campaignId) {
+        // Default-deny. Spring Security normally blocks unauthenticated requests before
+        // they reach the controller, but if a misconfiguration ever lets one through
+        // we must not implicitly grant access on a null principal.
+        if (isAdmin()) return true;
+        if (principal == null) return false;
+        return orchestrator.campaignBelongsToOrg(campaignId, principal.orgId());
     }
 }

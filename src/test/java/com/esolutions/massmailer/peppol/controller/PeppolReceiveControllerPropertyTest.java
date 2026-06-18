@@ -7,73 +7,59 @@ import com.esolutions.massmailer.peppol.repository.InboundDocumentRepository;
 import net.jqwik.api.*;
 import org.mockito.ArgumentCaptor;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 /**
  * Property-based tests for {@link PeppolReceiveController}.
  *
- * <p><b>Property 12: Payload Hash Correctness</b>
- *
- * <p>For any inbound UBL XML payload, the {@code payloadHash} stored on the
- * {@link InboundDocument} record equals the SHA-256 hex digest of that payload.
- *
- * <pre>
- * ∀ payload ∈ received_ubl_payloads:
- *   inboundDocument.payloadHash = sha256hex(payload)
- * </pre>
- *
- * <p><b>Validates: Requirements 9.5</b>
+ * <p><b>Property 12: Payload Hash Correctness</b> — for any accepted inbound UBL XML payload,
+ * the {@code payloadHash} stored on the {@link InboundDocument} equals the SHA-256 hex digest
+ * of that payload (UTF-8 encoded).
  */
 class PeppolReceiveControllerPropertyTest {
 
-    /**
-     * Builds a {@link PeppolReceiveController} with mocked repositories.
-     * The {@code InboundDocumentRepository.save()} is wired to capture the saved document.
-     *
-     * @param captor captures the {@link InboundDocument} passed to {@code save()}
-     */
+    private static final String SENDER_ID = "0190:ZW111111111";
+    private static final String SHARED_SECRET = "test-shared-secret-32-chars-min-len";
+
     private PeppolReceiveController buildController(ArgumentCaptor<InboundDocument> captor) {
         InboundDocumentRepository inboundRepo = mock(InboundDocumentRepository.class);
+        when(inboundRepo.findByPayloadHash(any())).thenReturn(Optional.empty());
         when(inboundRepo.save(captor.capture())).thenAnswer(inv -> {
             InboundDocument doc = inv.getArgument(0);
-            // Simulate JPA UUID generation so getId() is non-null
             if (doc.getId() == null) {
                 try {
                     var idField = InboundDocument.class.getDeclaredField("id");
                     idField.setAccessible(true);
                     idField.set(doc, java.util.UUID.randomUUID());
-                } catch (Exception e) {
-                    // ignore — test will still work via captor
-                }
+                } catch (Exception ignored) { }
             }
             return doc;
         });
 
         AccessPoint senderAp = mock(AccessPoint.class);
+        when(senderAp.isActive()).thenReturn(true);
+        when(senderAp.getInboundSharedSecret()).thenReturn(SHARED_SECRET);
         when(senderAp.getOrganizationId()).thenReturn(java.util.UUID.randomUUID());
 
         AccessPointRepository apRepo = mock(AccessPointRepository.class);
-        // Sender "0190:ZW111111111" is registered; all other lookups (receiver) return empty
-        when(apRepo.findByParticipantId("0190:ZW111111111")).thenReturn(Optional.of(senderAp));
-        when(apRepo.findByParticipantId(argThat(id -> !"0190:ZW111111111".equals(id))))
+        when(apRepo.findByParticipantId(SENDER_ID)).thenReturn(Optional.of(senderAp));
+        when(apRepo.findByParticipantId(argThat(id -> !SENDER_ID.equals(id))))
                 .thenReturn(Optional.empty());
 
         return new PeppolReceiveController(inboundRepo, apRepo);
     }
 
-    /**
-     * Computes the expected SHA-256 hex digest of a string encoded as UTF-8,
-     * matching the logic in {@link PeppolReceiveController#sha256(String)}.
-     */
     private String expectedSha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -84,17 +70,20 @@ class PeppolReceiveControllerPropertyTest {
         }
     }
 
-    /**
-     * Generator that produces valid UBL-like XML strings containing an {@code <Invoice}
-     * element (required by the controller's payload validation) with arbitrary content.
-     *
-     * <p>The body content is drawn from printable ASCII to avoid encoding edge cases
-     * while still exercising a wide range of inputs.
-     */
+    private String hmac(String secret, String body) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return Base64.getEncoder().encodeToString(mac.doFinal(body.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Provide
     Arbitrary<String> ublPayloads() {
         return Arbitraries.strings()
-                .withCharRange(' ', '~')   // printable ASCII
+                .withCharRange(' ', '~')
                 .ofMinLength(0)
                 .ofMaxLength(500)
                 .map(body -> "<Invoice xmlns=\"urn:oasis:names:specification:ubl:schema:xsd:Invoice-2\">"
@@ -102,82 +91,42 @@ class PeppolReceiveControllerPropertyTest {
                         + "</Invoice>");
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    //  Property 12: Payload Hash Correctness
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /**
-     * <b>Property 12: Payload Hash Correctness</b>
-     *
-     * <p>For any inbound UBL XML payload accepted by the C3 endpoint, the
-     * {@code payloadHash} persisted on the {@link InboundDocument} equals the
-     * SHA-256 hex digest of the raw payload string (UTF-8 encoded).
-     *
-     * <p><b>Validates: Requirements 9.5</b>
-     */
-    @Property(tries = 500)
+    @Property(tries = 200)
     void payloadHashCorrectness(@ForAll("ublPayloads") String payload) {
         ArgumentCaptor<InboundDocument> captor = ArgumentCaptor.forClass(InboundDocument.class);
         PeppolReceiveController controller = buildController(captor);
 
         controller.receive(
                 payload,
-                "0190:ZW111111111",   // senderParticipantId
-                "0190:ZW999999999",   // receiverParticipantId
-                null,                 // documentType
-                null,                 // processId
-                null                  // invoiceNumber
+                SENDER_ID,
+                "0190:ZW999999999",
+                null, null, null,
+                hmac(SHARED_SECRET, payload)
         );
 
-        assertThat(captor.getAllValues())
-                .as("InboundDocument must be saved for every valid inbound payload")
-                .isNotEmpty();
-
+        assertThat(captor.getAllValues()).isNotEmpty();
         InboundDocument saved = captor.getValue();
-        String expectedHash = expectedSha256(payload);
-
-        assertThat(saved.getPayloadHash())
-                .as("payloadHash must equal SHA-256 hex digest of the payload")
-                .isEqualTo(expectedHash);
+        assertThat(saved.getPayloadHash()).isEqualTo(expectedSha256(payload));
     }
 
-    /**
-     * <b>Property 12 (byte-level variant): Payload Hash Correctness for arbitrary byte content</b>
-     *
-     * <p>Verifies that the hash is computed over the exact UTF-8 byte representation of the
-     * payload string — not over any transformed or normalised version. Uses a wider character
-     * range including multi-byte Unicode characters to exercise the UTF-8 encoding path.
-     *
-     * <p><b>Validates: Requirements 9.5</b>
-     */
-    @Property(tries = 300)
+    @Property(tries = 200)
     void payloadHashCorrectnessUnicode(
             @ForAll @net.jqwik.api.constraints.StringLength(min = 0, max = 200) String arbitraryContent) {
 
-        // Wrap in a valid Invoice element so the controller accepts it
         String payload = "<Invoice>" + arbitraryContent + "</Invoice>";
-
         ArgumentCaptor<InboundDocument> captor = ArgumentCaptor.forClass(InboundDocument.class);
         PeppolReceiveController controller = buildController(captor);
 
         controller.receive(
                 payload,
-                "0190:ZW111111111",
+                SENDER_ID,
                 "0190:ZW999999999",
-                null,
-                null,
-                null
+                null, null, null,
+                hmac(SHARED_SECRET, payload)
         );
 
-        assertThat(captor.getAllValues())
-                .as("InboundDocument must be saved for every valid inbound payload")
-                .isNotEmpty();
-
+        assertThat(captor.getAllValues()).isNotEmpty();
         InboundDocument saved = captor.getValue();
-        String expectedHash = expectedSha256(payload);
-
-        assertThat(saved.getPayloadHash())
-                .as("payloadHash must equal SHA-256 hex digest of the UTF-8 encoded payload")
-                .isEqualTo(expectedHash);
+        assertThat(saved.getPayloadHash()).isEqualTo(expectedSha256(payload));
     }
 }

@@ -1,0 +1,42 @@
+<!--
+WinSW configuration for InvoiceDirect PDF Watcher Agent.
+Download WinSW.exe from https://github.com/winsw/winsw/releases
+Rename WinSW.exe to InvoiceDirectWatcher.exe and place in the same directory as this XML.
+-->
+<service>
+    <id>InvoiceDirectWatcher</id>
+    <name>InvoiceDirect PDF Watcher Agent</name>
+    <description>
+        Watches a local folder for fiscalised invoice PDFs and forwards them
+        to the InvoiceDirect cloud service for email dispatch.
+    </description>
+
+    <executable>java</executable>
+    <arguments>
+        --enable-preview
+        -Dwatcher.config="%BASE%\watcher.properties"
+        -Dwatcher.log.dir="%BASE%\logs"
+        -jar "%BASE%\pdf-watcher-agent-1.0.0.jar"
+    </arguments>
+
+    <log mode="roll-by-size">
+        <sizeThreshold>10240</sizeThreshold>
+        <keepFiles>8</keepFiles>
+    </log>
+
+    <onfailure action="restart" delay="30 sec" />
+
+    <stoptimeout>15 sec</stoptimeout>
+    <stopexecutable>java</stopexecutable>
+    <stoparguments>-jar "%BASE%\pdf-watcher-agent-1.0.0.jar" --stop</stoparguments>
+
+    <env name="JAVA_HOME" value="%JAVA_HOME%" />
+
+    <startmode>Automatic</startmode>
+    <delayedAutoStart>true</delayedAutoStart>
+
+    <serviceaccount>
+        <domain>NT AUTHORITY</domain>
+        <user>LocalSystem</user>
+    </serviceaccount>
+</service>
