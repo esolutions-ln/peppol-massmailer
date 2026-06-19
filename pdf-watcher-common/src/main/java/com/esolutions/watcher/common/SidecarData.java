@@ -1,4 +1,4 @@
-package com.esolutions.watcher;
+package com.esolutions.watcher.common;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -40,21 +40,30 @@ public record SidecarData(
         Map<String, Object> templateVariables,
         Map<String, Object> mergeFields
 ) {
-    public String campaignName() {
+    public String effectiveCampaignName() {
         return campaignName != null ? campaignName : "Watcher auto-dispatch";
     }
 
-    public String subject() {
+    public String effectiveSubject() {
         return subject != null ? subject : "Your Invoice";
     }
 
-    public String templateName() {
+    public String effectiveTemplateName() {
         return templateName != null ? templateName : "invoice";
     }
 
-    public String invoiceNumber(Path pdfPath) {
+    public String effectiveInvoiceNumber(Path pdfPath) {
         if (invoiceNumber != null && !invoiceNumber.isBlank()) return invoiceNumber;
-        String name = pdfPath.getFileName().toString();
-        return name.endsWith(".pdf") ? name.substring(0, name.length() - 4) : name;
+        if (pdfPath != null) {
+            String name = pdfPath.getFileName().toString();
+            return name.endsWith(".pdf") ? name.substring(0, name.length() - 4) : name;
+        }
+        return "unknown";
+    }
+
+    public boolean hasTaxId() {
+        return (bpn != null && !bpn.isBlank())
+                || (vatNumber != null && !vatNumber.isBlank())
+                || (tinNumber != null && !tinNumber.isBlank());
     }
 }

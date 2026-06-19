@@ -1,5 +1,8 @@
 package com.esolutions.watcher;
 
+import com.esolutions.watcher.common.PdfValidator;
+import com.esolutions.watcher.common.SidecarData;
+import com.esolutions.watcher.common.WatcherFileHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
@@ -7,7 +10,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class FolderWatcher {
 
@@ -17,26 +23,36 @@ public class FolderWatcher {
     private final ApiClient api;
     private final LedgerStore ledger;
     private final ObjectMapper json;
+    private final WatcherFileHandler fileHandler;
 
     private volatile boolean running = true;
+    private final Set<String> dispatchedInSession = ConcurrentHashMap.newKeySet();
+    private final AtomicLong processedCount = new AtomicLong();
+    private final AtomicLong failedCount = new AtomicLong();
 
     public FolderWatcher(WatcherConfig config, ApiClient api, LedgerStore ledger) {
         this.config = config;
         this.api = api;
         this.ledger = ledger;
         this.json = new ObjectMapper().registerModule(new JavaTimeModule());
+        this.fileHandler = new WatcherFileHandler(
+                config.emailedDirectory(),
+                config.failedDirectory(),
+                null
+        );
     }
 
     public void stop() {
         running = false;
     }
 
+    public long processed() { return processedCount.get(); }
+    public long failed() { return failedCount.get(); }
+
     public void start() throws IOException, InterruptedException {
         Path inbox = config.inboxDirectory();
         Files.createDirectories(inbox);
-        Files.createDirectories(config.emailedDirectory());
-        Files.createDirectories(config.failedDirectory());
-        Files.createDirectories(config.ledgerFile().getParent());
+        fileHandler.createDirectories();
 
         log.info("Watching {} for invoice PDFs", inbox.toAbsolutePath());
 
@@ -60,18 +76,29 @@ public class FolderWatcher {
 
     private void processPdf(Path pdfPath) {
         String base = pdfPath.getFileName().toString().replace(".pdf", "");
+
+        if (dispatchedInSession.contains(base)) {
+            log.debug("{} already dispatched this session — skipping duplicate", base);
+            return;
+        }
+
+        if (!Files.exists(pdfPath)) {
+            log.debug("PDF no longer exists: {}", pdfPath.getFileName());
+            return;
+        }
+
         log.info("New PDF detected: {}", pdfPath.getFileName());
 
         Path sidecarPath = pdfPath.resolveSibling(base + ".json");
-
         if (!Files.exists(sidecarPath)) {
-            log.warn("No sidecar JSON found for {} — waiting up to {}ms", base, config.sidecarWaitMs());
+            log.info("No sidecar JSON for {} — waiting up to {}ms", base, config.sidecarWaitMs());
             sidecarPath = awaitSidecar(pdfPath, base);
         }
 
         if (sidecarPath == null || !Files.exists(sidecarPath)) {
             log.error("Sidecar missing for {} after timeout — moving to failed", base);
-            moveFile(pdfPath, config.failedDirectory());
+            fileHandler.moveToFailed(pdfPath);
+            failedCount.incrementAndGet();
             return;
         }
 
@@ -80,8 +107,9 @@ public class FolderWatcher {
             process(pdfPath, sidecarPath, sidecar);
         } catch (Exception e) {
             log.error("Failed to process {}: {}", base, e.getMessage(), e);
-            moveFile(pdfPath, config.failedDirectory());
-            moveFile(sidecarPath, config.failedDirectory());
+            fileHandler.moveToFailed(pdfPath);
+            fileHandler.moveToFailed(sidecarPath);
+            failedCount.incrementAndGet();
         }
     }
 
@@ -103,26 +131,29 @@ public class FolderWatcher {
     }
 
     private void process(Path pdfPath, Path sidecarPath, SidecarData sidecar) {
-        String invoiceNumber = sidecar.invoiceNumber(pdfPath);
+        String invoiceNumber = sidecar.effectiveInvoiceNumber(pdfPath);
 
         if (ledger.alreadySent(invoiceNumber)) {
-            log.info("Invoice {} already sent — skipping", invoiceNumber);
-            moveFile(pdfPath, config.emailedDirectory());
-            moveFile(sidecarPath, config.emailedDirectory());
+            log.info("Invoice {} already sent (ledger) — skipping", invoiceNumber);
+            fileHandler.moveToProcessed(pdfPath);
+            fileHandler.moveToProcessed(sidecarPath);
             return;
         }
 
-        if (sidecar.organizationId() == null) {
-            log.error("Sidecar {} missing organizationId — cannot dispatch", invoiceNumber);
-            moveFile(pdfPath, config.failedDirectory());
-            moveFile(sidecarPath, config.failedDirectory());
+        UUID orgId = sidecar.organizationId() != null ? sidecar.organizationId() : config.organizationId();
+        if (orgId == null) {
+            log.error("Sidecar {} missing organizationId and no default in config — cannot dispatch", invoiceNumber);
+            fileHandler.moveToFailed(pdfPath);
+            fileHandler.moveToFailed(sidecarPath);
+            failedCount.incrementAndGet();
             return;
         }
 
         if (sidecar.recipientEmail() == null || sidecar.recipientEmail().isBlank()) {
             log.error("Sidecar {} missing recipientEmail — cannot dispatch", invoiceNumber);
-            moveFile(pdfPath, config.failedDirectory());
-            moveFile(sidecarPath, config.failedDirectory());
+            fileHandler.moveToFailed(pdfPath);
+            fileHandler.moveToFailed(sidecarPath);
+            failedCount.incrementAndGet();
             return;
         }
 
@@ -131,49 +162,51 @@ public class FolderWatcher {
             pdfBytes = Files.readAllBytes(pdfPath);
         } catch (IOException e) {
             log.error("Cannot read PDF {}: {}", pdfPath.getFileName(), e.getMessage());
-            moveFile(pdfPath, config.failedDirectory());
-            moveFile(sidecarPath, config.failedDirectory());
+            fileHandler.moveToFailed(pdfPath);
+            fileHandler.moveToFailed(sidecarPath);
+            failedCount.incrementAndGet();
             return;
         }
 
         if (pdfBytes.length == 0) {
             log.warn("PDF {} is empty — moving to failed", pdfPath.getFileName());
-            moveFile(pdfPath, config.failedDirectory());
-            moveFile(sidecarPath, config.failedDirectory());
+            fileHandler.moveToFailed(pdfPath);
+            fileHandler.moveToFailed(sidecarPath);
+            failedCount.incrementAndGet();
+            return;
+        }
+
+        if (!PdfValidator.isValidPdf(pdfBytes, pdfPath.getFileName().toString())) {
+            log.warn("PDF {} has invalid magic bytes — moving to failed", pdfPath.getFileName());
+            fileHandler.moveToFailed(pdfPath);
+            fileHandler.moveToFailed(sidecarPath);
+            failedCount.incrementAndGet();
             return;
         }
 
         try {
-            var result = api.createCampaign(sidecar.organizationId(), sidecar, pdfBytes);
+            var result = api.createCampaign(orgId, sidecar, pdfBytes, pdfPath);
 
             if (result.success()) {
                 log.info("Dispatched invoice {} as campaign {} (org={})",
-                        invoiceNumber, result.campaignId(), sidecar.organizationId());
-                moveFile(pdfPath, config.emailedDirectory());
-                moveFile(sidecarPath, config.emailedDirectory());
+                        invoiceNumber, result.campaignId(), orgId);
+                fileHandler.moveToProcessed(pdfPath);
+                fileHandler.moveToProcessed(sidecarPath);
                 ledger.recordSent(result.campaignId(), invoiceNumber,
                         pdfPath.getFileName().toString(), sidecar.recipientEmail());
+                dispatchedInSession.add(invoiceNumber);
+                processedCount.incrementAndGet();
             } else {
                 log.error("Failed to dispatch invoice {}: {}", invoiceNumber, result.error());
-                moveFile(pdfPath, config.failedDirectory());
-                moveFile(sidecarPath, config.failedDirectory());
+                fileHandler.moveToFailed(pdfPath);
+                fileHandler.moveToFailed(sidecarPath);
+                failedCount.incrementAndGet();
             }
         } catch (Exception e) {
             log.error("Error dispatching invoice {}: {}", invoiceNumber, e.getMessage(), e);
-            moveFile(pdfPath, config.failedDirectory());
-            moveFile(sidecarPath, config.failedDirectory());
-        }
-    }
-
-    private void moveFile(Path file, Path targetDir) {
-        if (!Files.exists(file)) return;
-        try {
-            Path target = targetDir.resolve(file.getFileName());
-            Files.createDirectories(targetDir);
-            Files.move(file, target, StandardCopyOption.REPLACE_EXISTING);
-            log.debug("Moved {} → {}", file.getFileName(), targetDir.getFileName());
-        } catch (IOException e) {
-            log.warn("Could not move {} to {}: {}", file.getFileName(), targetDir, e.getMessage());
+            fileHandler.moveToFailed(pdfPath);
+            fileHandler.moveToFailed(sidecarPath);
+            failedCount.incrementAndGet();
         }
     }
 }

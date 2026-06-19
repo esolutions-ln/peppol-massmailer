@@ -60,6 +60,8 @@ public class PdfWatcherAgent {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Shutdown signal received — stopping watcher");
             watcher.stop();
+            log.info("Session totals — processed: {}, failed: {}, ledger: {}",
+                    watcher.processed(), watcher.failed(), ledger.totalSent());
         }, "shutdown-hook"));
 
         log.info("Watcher is now active — Ctrl+C to stop");

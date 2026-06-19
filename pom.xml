@@ -85,6 +85,13 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- PDF Watcher Common — shared sidecar schema, file ops, validation -->
+        <dependency>
+            <groupId>com.esolutions</groupId>
+            <artifactId>pdf-watcher-common</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
         <!-- Jackson Java Time support -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
