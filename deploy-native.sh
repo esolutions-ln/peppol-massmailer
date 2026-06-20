@@ -30,7 +30,7 @@ source .env
 [ -n "${DB_PASS:-}" ]        || error "DB_PASS must be set in .env"
 
 info "Checking required tools..."
-for cmd in java mvn node npm nginx psql; do
+for cmd in java mvn node npm nginx psql openssl; do
   command -v "$cmd" &>/dev/null || error "'$cmd' is not installed. See README for prerequisites."
 done
 
@@ -93,6 +93,43 @@ ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
 GOOGLE_OAUTH2_CREDENTIALS_PATH=${CREDENTIALS_PATH}
 GOOGLE_OAUTH2_REFRESH_TOKEN=${GOOGLE_OAUTH2_REFRESH_TOKEN:-}
+
+# Campaign completion & ERP callback webhooks (>=32 chars, HMAC-SHA256 signing key)
+WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set in .env (>=32 characters)}
+
+# PEPPOL e-Delivery
+PEPPOL_SMP_BASE_URL=${PEPPOL_SMP_BASE_URL:-https://smp.peppoltest.org}
+PEPPOL_SMP_CACHE_TTL=${PEPPOL_SMP_CACHE_TTL:-3600}
+PEPPOL_SML_DOMAIN=${PEPPOL_SML_DOMAIN:-sml.peppoltest.org}
+PEPPOL_SML_DNS_PREFIX=${PEPPOL_SML_DNS_PREFIX:-b}
+
+# ERP Adapters — set per-org on the platform (all optional, conditionally activated)
+# Sage Intacct
+SAGE_BASE_URL=${SAGE_BASE_URL:-}
+SAGE_SENDER_ID=${SAGE_SENDER_ID:-}
+SAGE_SENDER_PASSWORD=${SAGE_SENDER_PASSWORD:-}
+SAGE_COMPANY_ID=${SAGE_COMPANY_ID:-}
+SAGE_USER_ID=${SAGE_USER_ID:-}
+SAGE_USER_PASSWORD=${SAGE_USER_PASSWORD:-}
+# Sage Network (e-invoice status webhooks)
+SAGE_NETWORK_BASE_URL=${SAGE_NETWORK_BASE_URL:-}
+SAGE_NETWORK_API_KEY=${SAGE_NETWORK_API_KEY:-}
+# QuickBooks Online
+QB_BASE_URL=${QB_BASE_URL:-https://quickbooks.api.intuit.com/v3}
+QB_CLIENT_ID=${QB_CLIENT_ID:-}
+QB_CLIENT_SECRET=${QB_CLIENT_SECRET:-}
+QB_REALM_ID=${QB_REALM_ID:-}
+QB_REFRESH_TOKEN=${QB_REFRESH_TOKEN:-}
+# Microsoft Dynamics 365
+D365_BASE_URL=${D365_BASE_URL:-}
+D365_TENANT_ID=${D365_TENANT_ID:-}
+D365_CLIENT_ID=${D365_CLIENT_ID:-}
+D365_CLIENT_SECRET=${D365_CLIENT_SECRET:-}
+# Odoo
+ODOO_BASE_URL=${ODOO_BASE_URL:-}
+ODOO_DATABASE=${ODOO_DATABASE:-}
+ODOO_USERNAME=${ODOO_USERNAME:-}
+ODOO_API_KEY=${ODOO_API_KEY:-}
 EOF
 
 chmod 600 /etc/massmailer.env
@@ -169,6 +206,14 @@ server {
 
     location /peppol/ {
         proxy_pass http://127.0.0.1:9199/peppol/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # PEPPOL SMP discovery — queried by other Access Points
+    # BDXR SMP v2 endpoints: /bdxr/smp/{participant}/services/{doctype}
+    location /bdxr/ {
+        proxy_pass http://127.0.0.1:9199/bdxr/;
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }

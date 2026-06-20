@@ -96,11 +96,26 @@ pdf-watcher:
     emailed-directory: ${PDF_WATCHER_EMAILED:/var/lib/invoicedirect/emailed}
     default-organization-id: ${PDF_WATCHER_ORG_ID:}
 
+peppol:
+  smp:
+    base-url: ${PEPPOL_SMP_BASE_URL:https://smp.peppoltest.org}
+    cache-ttl-seconds: ${PEPPOL_SMP_CACHE_TTL:3600}
+  sml:
+    domain: ${PEPPOL_SML_DOMAIN:sml.peppoltest.org}
+    dns-prefix: ${PEPPOL_SML_DNS_PREFIX:b}
+
 admin:
   username: ${ADMIN_USERNAME:admin}
   # No default — bootstrap admin password must be provided by env. Fail fast otherwise.
   password: ${ADMIN_PASSWORD:?ADMIN_PASSWORD environment variable is required}
   token-expiry-hours: ${ADMIN_TOKEN_EXPIRY_HOURS:8}
+
+# Seeds a default ORG_ADMIN member into every organisation on first startup.
+# After adding members via the UI, you can remove these env vars or change the password.
+default-org-admin:
+  email: ${DEFAULT_ORG_ADMIN_EMAIL:admin@invoicedirect.biz}
+  password: ${DEFAULT_ORG_ADMIN_PASSWORD:}
+  display-name: ${DEFAULT_ORG_ADMIN_NAME:Org Admin}
 
 management:
   endpoints:

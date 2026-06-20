@@ -60,7 +60,18 @@ services:
       # ── Google OAuth2 (only used if massmailer.gmail-oauth2.enabled=true) ──
       GOOGLE_OAUTH2_CREDENTIALS_PATH: ${GOOGLE_OAUTH2_CREDENTIALS_PATH:-/etc/mailer/google-oauth-credentials.json}
       GOOGLE_OAUTH2_REFRESH_TOKEN: ${GOOGLE_OAUTH2_REFRESH_TOKEN:-}
+
+      # ── PDF Folder Watcher (in-process) ──
+      # Set PDF_WATCHER_ENABLED=true and PDF_WATCHER_ORG_ID to activate.
+      # Watches inbox for PDF+JSON sidecar pairs and dispatches automatically.
+      PDF_WATCHER_ENABLED: ${PDF_WATCHER_ENABLED:-false}
+      PDF_WATCHER_INBOX: ${PDF_WATCHER_INBOX:-/var/lib/invoicedirect/watcher/inbox}
+      PDF_WATCHER_EMAILED: ${PDF_WATCHER_EMAILED:-/var/lib/invoicedirect/watcher/emailed}
+      PDF_WATCHER_ORG_ID: ${PDF_WATCHER_ORG_ID:-}
     volumes:
+      # PDF inbox for the in-process watcher (writable — files are moved to processed/failed)
+      - ./inbox:/var/lib/invoicedirect/watcher/inbox
+      # Separate PDF inbox for ERP API uploads (read-only path validation base)
       - ./inbox:/var/lib/invoicedirect/invoices:ro
       - ./target/mass-mailer-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
     healthcheck:

@@ -56,4 +56,10 @@ public class ContactService {
     public List<Contact> findByCustomerId(UUID customerId) {
         return repo.findByCustomerId(customerId);
     }
+
+    @Transactional(readOnly = true)
+    public List<Contact> findByCustomerIds(List<UUID> customerIds) {
+        if (customerIds == null || customerIds.isEmpty()) return List.of();
+        return repo.findByCustomerIds(customerIds);
+    }
 }

@@ -146,7 +146,7 @@ public class SmtpSendService {
 
     private DeliveryResult sendViaBrevo(Sender from, String toEmail, String toName,
                                         String subject, String htmlBody, String invoiceNumber,
-                                        ResolvedAttachment attachment) throws MessagingException {
+                                        ResolvedAttachment attachment, String accountNumber) throws MessagingException {
         try {
             var req = BrevoEmailClient.SendRequest.builder()
                     .sender(from.email(), from.name())
@@ -171,6 +171,9 @@ public class SmtpSendService {
             var ccContacts = resolveCcContacts(toEmail);
             ccContacts.forEach(c -> req.cc(c.getEmail(), c.getName()));
 
+            if (accountNumber != null) {
+                req.header("X-Customer-Account-Number", accountNumber);
+            }
             String messageId = brevo.sendTransactional(req.build());
             if (ccContacts.isEmpty()) {
                 log.info("✓ Invoice {} sent to {} via Brevo [msgId={}, pdf={}bytes, from={}]",

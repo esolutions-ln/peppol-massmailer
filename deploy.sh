@@ -30,16 +30,31 @@ if [ -z "${ADMIN_PASSWORD:-}" ]; then
   exit 1
 fi
 
-# ── Step 1: Build all images ────────────────────────────────────────────────
+# ── Step 1: Build application JAR ────────────────────────────────────────────
 echo ""
-echo "[1/4] Building Docker images..."
+echo "[1/4] Building application..."
+
+if [ ! -d pdf-watcher-common ]; then
+  echo "ERROR: pdf-watcher-common/ directory not found."
+  exit 1
+fi
+
+echo "  -> Installing pdf-watcher-common module..."
+mvn install -f pdf-watcher-common/pom.xml -q
+
+echo "  -> Building mass-mailer service..."
+mvn clean package -DskipTests -q
+
+# ── Step 2: Build Docker images ─────────────────────────────────────────────
+echo ""
+echo "[2/4] Building Docker images..."
 $COMPOSE build
 
-# ── Step 2: Initial SSL certificate (first-time only) ──────────────────────
+# ── Step 3: Initial SSL certificate (first-time only) ──────────────────────
 SSL_CERT_DIR="./ssl-certs"
 if [ ! -f "${SSL_CERT_DIR}/fullchain.pem" ]; then
   echo ""
-  echo "[2/4] Obtaining SSL certificate from Let's Encrypt..."
+  echo "[3/5] Obtaining SSL certificate from Let's Encrypt..."
   echo "      Make sure DNS for ${DOMAIN} points to this server."
 
   # Create a temporary nginx config that serves HTTP only (for ACME challenge)
@@ -75,17 +90,17 @@ if [ ! -f "${SSL_CERT_DIR}/fullchain.pem" ]; then
   $COMPOSE down
 else
   echo ""
-  echo "[2/4] SSL certificate already exists — skipping."
+  echo "[3/5] SSL certificate already exists — skipping."
 fi
 
-# ── Step 3: Start all services ──────────────────────────────────────────────
+# ── Step 4: Start all services ──────────────────────────────────────────────
 echo ""
-echo "[3/4] Starting all services..."
+echo "[4/5] Starting all services..."
 $COMPOSE up -d
 
-# ── Step 4: Wait for health checks ─────────────────────────────────────────
+# ── Step 5: Wait for health checks ─────────────────────────────────────────
 echo ""
-echo "[4/4] Waiting for services to be healthy..."
+echo "[5/5] Waiting for services to be healthy..."
 
 for i in $(seq 1 60); do
   status=$($COMPOSE ps --format '{{.Service}} {{.Status}}' | awk '$1=="mass-mailer"{$1=""; sub(/^ /,""); print}')

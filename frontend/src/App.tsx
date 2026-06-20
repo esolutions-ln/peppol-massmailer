@@ -4,7 +4,6 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
-import CampaignsPage from './pages/CampaignsPage'
 import InvoicesPage from './pages/InvoicesPage'
 import EmailTemplatesPage from './pages/EmailTemplatesPage'
 import CustomersPage from './pages/CustomersPage'
@@ -38,7 +37,6 @@ function AppRoutes() {
       <Route path="/admin/login" element={session ? <Navigate to="/dashboard" /> : <AdminLoginPage />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/campaigns" element={<ProtectedRoute><CampaignsPage /></ProtectedRoute>} />
       <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
       <Route path="/email-templates" element={<ProtectedRoute><EmailTemplatesPage /></ProtectedRoute>} />
       <Route path="/send" element={<ProtectedRoute><SendTestPage /></ProtectedRoute>} />

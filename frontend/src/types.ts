@@ -128,6 +128,8 @@ export interface Customer {
   unsubscribed: boolean
   totalInvoicesSent: number
   totalDeliveryFailures: number
+  invoicesPending: number
+  invoicesSent: number
   lastInvoiceSentAt?: string
   createdAt?: string
   contacts: Contact[]
@@ -318,6 +320,37 @@ export interface PeppolInvitation {
 export interface TokenValidationResponse {
   customerEmail: string
   organisationName: string
+}
+
+// ─── PEPPOL PKI (Certificate Management) ──────────────────────────────────────
+export interface PeppolCertificate {
+  id: string
+  organizationId: string
+  issuerDn: string
+  subjectDn: string
+  serialNumber: string
+  validFrom: string
+  validTo: string
+  status: 'ACTIVE' | 'ROTATED' | 'EXPIRED' | 'REVOKED'
+  createdAt: string
+  rotatedAt: string | null
+  description: string | null
+}
+
+export interface PeppolCertUploadRequest {
+  certificatePem: string
+  privateKeyPem: string
+  description?: string
+}
+
+export interface PeppolActiveCertResponse {
+  certId: string
+  subjectDn: string
+  issuerDn: string
+  serialNumber: string
+  validFrom: string
+  validTo: string
+  status: string
 }
 
 // ─── Delivery Dashboard ───────────────────────────────────────────────────────

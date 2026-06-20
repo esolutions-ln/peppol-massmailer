@@ -34,12 +34,14 @@ export default function MembersPage() {
 
   if (!canManageMembers) {
     return (
-      <div className="page">
-        <h1>Team</h1>
-        <div className="alert alert-error">
-          You don't have permission to manage team members. Only organisation admins can.
+      <>
+        <div className="topbar"><span className="topbar-title">Team</span></div>
+        <div className="content">
+          <div className="alert alert-error">
+            You don't have permission to manage team members. Only organisation admins can.
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
@@ -101,127 +103,147 @@ export default function MembersPage() {
   }
 
   return (
-    <div className="page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <h1>Team</h1>
-          <p style={{ color: '#64748b', marginTop: 4 }}>
-            Manage who can access this organisation's invoices and campaigns.
-          </p>
-        </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(s => !s)}>
-          <UserPlus size={16} /> Add member
+    <>
+      <div className="topbar">
+        <span className="topbar-title">Team</span>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(s => !s)}>
+          <UserPlus size={15} /> Add member
         </button>
       </div>
-
-      {error && <div className="alert alert-error">{error}</div>}
-
-      {showCreate && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <form onSubmit={handleCreate}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              <div className="form-group">
-                <label>Email</label>
-                <input type="email" required value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
-                  placeholder="member@yourcompany.co.zw" />
-              </div>
-              <div className="form-group">
-                <label>Display name</label>
-                <input value={form.displayName}
-                  onChange={e => setForm({ ...form, displayName: e.target.value })}
-                  placeholder="Jane Doe" />
-              </div>
-              <div className="form-group">
-                <label>Temporary password (min 8)</label>
-                <input type="text" required minLength={8} value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="They'll change it on first login" />
-              </div>
-              <div className="form-group">
-                <label>Role</label>
-                <select value={form.role}
-                  onChange={e => setForm({ ...form, role: e.target.value as OrgMemberRole })}>
-                  <option value="ORG_VIEWER">Viewer — read-only access to invoices &amp; campaigns</option>
-                  <option value="ORG_ADMIN">Admin — full access, can manage team</option>
-                </select>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="btn btn-primary" disabled={submitting} type="submit">
-                {submitting ? 'Creating…' : 'Create member'}
-              </button>
-              <button className="btn btn-secondary" type="button" onClick={() => setShowCreate(false)}>
-                Cancel
-              </button>
-            </div>
-          </form>
+      <div className="content">
+        <div className="page-header">
+          <h2>Team</h2>
+          <p>Manage who can access this organisation's invoices and campaigns.</p>
         </div>
-      )}
 
-      {loading ? <div className="spinner" /> : (
-        <div className="card">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Display name</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Last login</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: '#64748b' }}>
-                  No members yet. Add one above.
-                </td></tr>
-              ) : members.map(m => (
-                <tr key={m.id}>
-                  <td>{m.email}{session?.memberId === m.id && <span style={{ color: '#64748b', fontSize: 12 }}> (you)</span>}</td>
-                  <td>{m.displayName || '—'}</td>
-                  <td>
-                    <select value={m.role}
-                      onChange={e => handleChangeRole(m, e.target.value as OrgMemberRole)}
-                      disabled={session?.memberId === m.id}
-                      style={{ fontSize: 13, padding: '4px 8px' }}>
-                      <option value="ORG_ADMIN">Admin</option>
-                      <option value="ORG_VIEWER">Viewer</option>
-                    </select>
-                  </td>
-                  <td>
-                    <span style={{ color: m.active ? '#16a34a' : '#dc2626', fontWeight: 500 }}>
-                      {m.active ? 'Active' : 'Disabled'}
-                    </span>
-                  </td>
-                  <td style={{ color: '#64748b', fontSize: 13 }}>
-                    {m.lastLoginAt ? new Date(m.lastLoginAt).toLocaleString() : 'Never'}
-                  </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn-icon" title="Reset password"
-                      onClick={() => handleResetPassword(m)}><RefreshCw size={14} /></button>
-                    <button className="btn-icon" title={m.active ? 'Deactivate' : 'Activate'}
-                      onClick={() => handleToggleActive(m)}
-                      disabled={session?.memberId === m.id}><Power size={14} /></button>
-                    <button className="btn-icon" title="Delete"
-                      onClick={() => handleDelete(m)}
-                      disabled={session?.memberId === m.id}><Trash2 size={14} /></button>
-                  </td>
+        {error && <div className="alert alert-error">{error}</div>}
+
+        {showCreate && (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card-header">
+              <span className="card-title">New member</span>
+            </div>
+            <form onSubmit={handleCreate}>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label>Email</label>
+                  <input type="email" required value={form.email}
+                    onChange={e => setForm({ ...form, email: e.target.value })}
+                    placeholder="member@yourcompany.co.zw" />
+                </div>
+                <div className="form-group">
+                  <label>Display name</label>
+                  <input value={form.displayName}
+                    onChange={e => setForm({ ...form, displayName: e.target.value })}
+                    placeholder="Jane Doe" />
+                </div>
+                <div className="form-group">
+                  <label>Temporary password (min 8)</label>
+                  <input type="text" required minLength={8} value={form.password}
+                    onChange={e => setForm({ ...form, password: e.target.value })}
+                    placeholder="They'll change it on first login" />
+                </div>
+                <div className="form-group">
+                  <label>Role</label>
+                  <select value={form.role}
+                    onChange={e => setForm({ ...form, role: e.target.value as OrgMemberRole })}>
+                    <option value="ORG_VIEWER">Viewer — read-only access to invoices &amp; campaigns</option>
+                    <option value="ORG_ADMIN">Admin — full access, can manage team</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button className="btn btn-primary" disabled={submitting} type="submit">
+                  {submitting ? <><span className="spinner" /> Creating…</> : 'Create member'}
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={() => setShowCreate(false)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="loading-center"><span className="spinner" /></div>
+        ) : (
+          <div className="card">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Display name</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Last login</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {members.length === 0 ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
+                    No members yet. Add one above.
+                  </td></tr>
+                ) : members.map(m => (
+                  <tr key={m.id}>
+                    <td>
+                      <span style={{ fontWeight: 500 }}>{m.email}</span>
+                      {session?.memberId === m.id && <span className="badge badge-blue" style={{ marginLeft: 6 }}>you</span>}
+                    </td>
+                    <td>{m.displayName || <span className="text-muted">—</span>}</td>
+                    <td>
+                      <select value={m.role}
+                        onChange={e => handleChangeRole(m, e.target.value as OrgMemberRole)}
+                        disabled={session?.memberId === m.id}
+                        style={{ fontSize: 13, padding: '5px 10px', width: 'auto' }}>
+                        <option value="ORG_ADMIN">Admin</option>
+                        <option value="ORG_VIEWER">Viewer</option>
+                      </select>
+                    </td>
+                    <td>
+                      <span className={`badge ${m.active ? 'badge-green' : 'badge-red'}`}>
+                        {m.active ? 'Active' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td className="text-sm text-muted">
+                      {m.lastLoginAt ? new Date(m.lastLoginAt).toLocaleString() : 'Never'}
+                    </td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button className="btn-icon" title="Reset password" onClick={() => handleResetPassword(m)}>
+                        <RefreshCw size={14} />
+                      </button>
+                      <button className="btn-icon" title={m.active ? 'Deactivate' : 'Activate'}
+                        onClick={() => handleToggleActive(m)}
+                        disabled={session?.memberId === m.id}>
+                        <Power size={14} />
+                      </button>
+                      <button className="btn-icon" title="Delete"
+                        onClick={() => handleDelete(m)}
+                        disabled={session?.memberId === m.id}>
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      <div style={{ marginTop: 24, padding: 16, background: '#f8fafc', borderRadius: 8, fontSize: 13, color: '#475569' }}>
-        <strong style={{ color: '#0f172a' }}>About roles</strong>
-        <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-          <li><Shield size={12} style={{ display: 'inline', marginRight: 4 }} /><b>Admin</b> — full access. Can send invoices, manage customers, templates, and team members.</li>
-          <li><Eye size={12} style={{ display: 'inline', marginRight: 4 }} /><b>Viewer</b> — read-only. Can view invoices (including PDFs), campaigns, customers, and dashboards. Cannot send or manage anything.</li>
-        </ul>
+        <div style={{ marginTop: 20, padding: '14px 18px', background: '#f8fafc', borderRadius: 10, fontSize: 13, color: '#475569', border: '1px solid #e8edf2' }}>
+          <strong style={{ color: '#0f172a', display: 'block', marginBottom: 8 }}>About roles</strong>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Shield size={13} style={{ color: '#6366f1', flexShrink: 0 }} />
+              <span><b>Admin</b> — full access. Can send invoices, manage customers, templates, and team members.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Eye size={13} style={{ color: '#64748b', flexShrink: 0 }} />
+              <span><b>Viewer</b> — read-only. Can view invoices, campaigns, and dashboards. Cannot send or manage anything.</span>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

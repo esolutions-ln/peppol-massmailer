@@ -86,4 +86,23 @@ public class OrgAuthService {
         if (rawToken == null || rawToken.isBlank()) return;
         tokens.deleteByToken(AdminTokens.hashToken(rawToken));
     }
+
+    @Transactional
+    public LoginResponse createTokenForMember(OrgMember member) {
+        String rawToken = AdminTokens.generateRawToken();
+        var session = OrgSessionToken.builder()
+                .token(AdminTokens.hashToken(rawToken))
+                .orgMember(member)
+                .expiresAt(Instant.now().plus(TOKEN_EXPIRY_HOURS, ChronoUnit.HOURS))
+                .build();
+        tokens.save(session);
+
+        member.setLastLoginAt(Instant.now());
+        members.save(member);
+
+        var org = orgs.findById(member.getOrganizationId()).orElseThrow();
+        return new LoginResponse(rawToken, org.getId(), org.getSlug(),
+                member.getId(), member.getEmail(), member.getDisplayName(),
+                member.getRole().name());
+    }
 }

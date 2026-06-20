@@ -11,6 +11,8 @@ import com.esolutions.massmailer.customer.service.CustomerService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.esolutions.massmailer.model.DeliveryMode;
+import com.esolutions.massmailer.model.MailRecipient.RecipientStatus;
+import com.esolutions.massmailer.repository.RecipientRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,17 +45,20 @@ public class CustomerController {
     private final CustomerRepository customerRepo;
     private final CustomerCsvImportService csvImport;
     private final ObjectMapper objectMapper;
+    private final RecipientRepository recipientRepo;
 
     public CustomerController(CustomerService customerService,
                               ContactService contactService,
                               CustomerRepository customerRepo,
                               CustomerCsvImportService csvImport,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              RecipientRepository recipientRepo) {
         this.customerService = customerService;
         this.contactService = contactService;
         this.customerRepo = customerRepo;
         this.csvImport = csvImport;
         this.objectMapper = objectMapper;
+        this.recipientRepo = recipientRepo;
     }
 
     public record ContactResponse(
@@ -84,7 +89,9 @@ public class CustomerController {
             long totalDeliveryFailures,
             Instant lastInvoiceSentAt,
             Instant createdAt,
-            List<ContactResponse> contacts
+            List<ContactResponse> contacts,
+            long invoicesPending,
+            long invoicesSent
     ) {}
 
     public record RegisterCustomerRequest(
@@ -211,9 +218,34 @@ public class CustomerController {
         String sortField = ALLOWED_SORT_FIELDS.contains(sort) ? sort : "companyName";
         Sort sortObj = Sort.by(Sort.Direction.fromString(dir), sortField);
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), sortObj);
+        Page<Customer> customerPage = customerService.listByOrg(orgId, search, pageable);
+
+        Map<UUID, long[]> counts = computeInvoiceCounts(customerPage.getContent());
         return ResponseEntity.ok(
-                customerService.listByOrg(orgId, search, pageable).map(this::toResponse)
+                customerPage.map(c -> toResponse(c, counts.getOrDefault(c.getId(), new long[]{0L, 0L})))
         );
+    }
+
+    private Map<UUID, long[]> computeInvoiceCounts(List<Customer> customers) {
+        Map<UUID, long[]> result = new java.util.HashMap<>();
+        if (customers.isEmpty()) return result;
+        for (var c : customers) {
+            result.put(c.getId(), new long[]{0L, 0L}); // [pending, sent]
+        }
+        List<UUID> customerIds = customers.stream().map(Customer::getId).toList();
+        List<Object[]> rows = recipientRepo.countByCustomerIdsGroupedByStatus(customerIds);
+        for (Object[] row : rows) {
+            UUID customerId = (UUID) row[0];
+            RecipientStatus status = (RecipientStatus) row[1];
+            long count = ((Number) row[2]).longValue();
+            long[] counts = result.get(customerId);
+            if (counts != null) {
+                if (status == RecipientStatus.PENDING) counts[0] += count;
+                else if (status == RecipientStatus.SENT) counts[1] += count;
+                else counts[0] += count;
+            }
+        }
+        return result;
     }
 
     @Operation(summary = "Look up a customer by contact email")
@@ -283,6 +315,18 @@ public class CustomerController {
         var contacts = contactService.findByCustomerId(c.getId()).stream()
                 .map(this::toContactResponse)
                 .toList();
+        long[] counts = computeInvoiceCounts(List.of(c)).getOrDefault(c.getId(), new long[]{0L, 0L});
+        return toResponse(c, contacts, counts);
+    }
+
+    private CustomerResponse toResponse(Customer c, long[] counts) {
+        var contacts = contactService.findByCustomerId(c.getId()).stream()
+                .map(this::toContactResponse)
+                .toList();
+        return toResponse(c, contacts, counts);
+    }
+
+    private CustomerResponse toResponse(Customer c, List<ContactResponse> contacts, long[] counts) {
         return new CustomerResponse(
                 c.getId(), c.getOrganizationId(),
                 c.getErpCustomerId(), c.getCompanyName(), c.getTradingName(),
@@ -291,7 +335,8 @@ public class CustomerController {
                 c.getAddressLine1(), c.getAddressLine2(), c.getCity(), c.getCountry(),
                 c.isUnsubscribed(), c.getTotalInvoicesSent(), c.getTotalDeliveryFailures(),
                 c.getLastInvoiceSentAt(), c.getCreatedAt(),
-                contacts
+                contacts,
+                counts[0], counts[1]
         );
     }
 

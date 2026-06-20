@@ -45,6 +45,11 @@ public class MailRecipient {
     private String verificationCode;
     private String qrCodeUrl;
 
+    private UUID customerId;
+    
+    @Column(name = "account_number")
+    private String accountNumber;
+
     private String pdfFilePath;
     @Column(columnDefinition = "TEXT")
     private String pdfBase64;

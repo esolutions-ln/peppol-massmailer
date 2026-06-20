@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { listOrgsPaged, assignRateProfile, listRateProfiles, updateOrg, deactivateOrg, registerOrg } from '../../api/client'
-import { Building2, RefreshCw, X, Pencil, Power, Plus, Users, ChevronLeft, ChevronRight } from 'lucide-react'
+import { listOrgsPaged, assignRateProfile, listRateProfiles, updateOrg, deactivateOrg, registerOrg, adminPeppolOnboard } from '../../api/client'
+import { Building2, RefreshCw, X, Pencil, Power, Plus, Users, ChevronLeft, ChevronRight, Network } from 'lucide-react'
 import type { Organization, RateProfile, DeliveryMode } from '../../types'
 
 type OrgStatus = 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED'
@@ -360,6 +360,109 @@ function AssignModal({ org, profiles, onClose, onSave }: {
   )
 }
 
+function PeppolOnboardModal({ org, onClose, onSaved }: {
+  org: Organization
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [form, setForm] = useState({
+    peppolParticipantId: org.peppolParticipantId ?? '',
+    deliveryMode: (org.deliveryMode === 'AS4' || org.deliveryMode === 'BOTH' ? org.deliveryMode : 'AS4') as 'AS4' | 'BOTH',
+    participantName: org.name ?? '',
+    endpointUrl: '',
+    simplifiedHttpDelivery: true,
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  const set = (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleOnboard = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      await adminPeppolOnboard(org.id, form)
+      setSuccess(true)
+      onSaved()
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? err.response?.data ?? 'Onboarding failed.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const alreadyOnPeppol = org.deliveryMode === 'AS4' || org.deliveryMode === 'BOTH'
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: 520 }}>
+        <div className="modal-header">
+          <span className="modal-title">PEPPOL Onboarding — {org.name}</span>
+          <button className="close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        {success && <div className="alert alert-success">PEPPOL onboarded successfully!</div>}
+        {error && <div className="alert alert-error">{error}</div>}
+        <div className="mb-4" style={{ background: '#f8fafc', borderRadius: 8, padding: 12, fontSize: 13 }}>
+          <div><span className="text-muted">Current delivery mode:</span> <strong>{org.deliveryMode}</strong></div>
+          <div><span className="text-muted">PEPPOL participant ID:</span> <strong>{org.peppolParticipantId || '—'}</strong></div>
+        </div>
+        {alreadyOnPeppol ? (
+          <>
+            <p className="text-sm text-muted">This organisation is already PEPPOL-enabled. Use the <strong>Edit</strong> dialog to modify settings.</p>
+            <div className="flex gap-2 mt-4">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+            </div>
+          </>
+        ) : (
+          <form onSubmit={handleOnboard}>
+            <div className="grid-2">
+              <div className="form-group">
+                <label>Delivery Mode</label>
+                <select value={form.deliveryMode} onChange={set('deliveryMode')}>
+                  <option value="AS4">PEPPOL AS4 only</option>
+                  <option value="BOTH">Email + AS4</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Participant ID</label>
+                <input value={form.peppolParticipantId} onChange={set('peppolParticipantId')}
+                       placeholder="Auto-derived from VAT/TIN" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Participant Name *</label>
+              <input value={form.participantName} onChange={set('participantName')} required />
+            </div>
+            <div className="form-group">
+              <label>Gateway Endpoint URL *</label>
+              <input value={form.endpointUrl} onChange={set('endpointUrl')}
+                     placeholder="https://ap.invoicedirect.biz/peppol/as4/receive" required />
+            </div>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" style={{ width: 'auto' }}
+                       checked={form.simplifiedHttpDelivery}
+                       onChange={e => setForm(f => ({ ...f, simplifiedHttpDelivery: e.target.checked }))} />
+                Use simplified HTTP delivery (instead of full AS4)
+              </label>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? <span className="spinner" /> : 'Onboard to PEPPOL'}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 export default function OrganizationsPage() {
@@ -368,6 +471,7 @@ export default function OrganizationsPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Organization | null>(null)
   const [editing, setEditing] = useState<Organization | null>(null)
+  const [peppolOrg, setPeppolOrg] = useState<Organization | null>(null)
   const [creating, setCreating] = useState(false)
   const [revealedKey, setRevealedKey] = useState<{ apiKey: string; orgName: string } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -512,6 +616,9 @@ export default function OrganizationsPage() {
                             <button className="btn btn-secondary btn-sm" onClick={() => setEditing(o)} title="Edit">
                               <Pencil size={14} /> Edit
                             </button>
+                            <button className="btn btn-secondary btn-sm" onClick={() => setPeppolOrg(o)} title="PEPPOL">
+                              <Network size={14} /> PEPPOL
+                            </button>
                             <button className="btn btn-secondary btn-sm" onClick={() => setSelected(o)}>Assign Plan</button>
                             <button
                               className="btn btn-secondary btn-sm"
@@ -564,6 +671,13 @@ export default function OrganizationsPage() {
           org={editing}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load() }}
+        />
+      )}
+      {peppolOrg && (
+        <PeppolOnboardModal
+          org={peppolOrg}
+          onClose={() => setPeppolOrg(null)}
+          onSaved={() => { setPeppolOrg(null); load() }}
         />
       )}
       {creating && (

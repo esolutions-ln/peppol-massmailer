@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getMyInvoices, getMyInvoiceByNumber } from '../api/client'
-import { FileText, RefreshCw, Search, X, Eye, Download } from 'lucide-react'
-import type { InvoiceRecord } from '../types'
+import { FileText, RefreshCw, Search, X, Eye, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import type { InvoiceRecord, PageResponse } from '../types'
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -98,8 +98,12 @@ export default function CampaignsPage() {
   const [activeSearch, setActiveSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [selected, setSelected] = useState<InvoiceRecord | null>(null)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(20)
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
 
-  const load = useCallback((invoiceSearch: string, status: string) => {
+  const load = useCallback((invoiceSearch: string, status: string, pageNum: number) => {
     if (isAdmin) {
       setLoading(false)
       setInvoices([])
@@ -108,6 +112,11 @@ export default function CampaignsPage() {
     }
     setLoading(true)
     setError('')
+    const params: Record<string, string> = {}
+    if (status) params.status = status
+    params.page = pageNum.toString()
+    params.size = pageSize.toString()
+    
     if (invoiceSearch.trim()) {
       getMyInvoiceByNumber(invoiceSearch.trim(), session?.apiKey)
         .then(r => { setInvoices(r.data ?? []); setError('') })
@@ -119,34 +128,40 @@ export default function CampaignsPage() {
         })
         .finally(() => setLoading(false))
     } else {
-      const params: Record<string, string> = {}
-      if (status) params.status = status
       getMyInvoices(session?.apiKey, params)
-        .then(r => setInvoices(r.data ?? []))
+        .then(r => {
+          setInvoices(r.data.content ?? [])
+          setTotalElements(r.data.totalElements)
+          setTotalPages(r.data.totalPages)
+        })
         .catch(() => { setInvoices([]); setError('Failed to load invoices. Check your connection.') })
         .finally(() => setLoading(false))
     }
-  }, [session?.apiKey, isAdmin])
+  }, [session?.apiKey, isAdmin, pageSize])
 
   useEffect(() => {
-    setActiveSearch('')
-    setSearchInput('')
-    load('', statusFilter)
-  }, [statusFilter])
+    if (activeSearch) {
+      load(activeSearch, '', page)
+    } else {
+      load('', statusFilter, page)
+    }
+  }, [page])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     const term = searchInput.trim()
     setActiveSearch(term)
     setStatusFilter('')
-    load(term, '')
+    setPage(0)
+    load(term, '', 0)
   }
 
   const handleClear = () => {
     setSearchInput('')
     setActiveSearch('')
     setError('')
-    load('', statusFilter)
+    setPage(0)
+    load('', statusFilter, 0)
   }
 
   return (
@@ -195,48 +210,76 @@ export default function CampaignsPage() {
             <div className="empty-state"><FileText size={32} /><p>No invoices sent yet</p></div>
           ) : invoices.length > 0 ? (
             <>
-              <div className="text-sm text-muted mb-4">
-                {invoices.length} record{invoices.length !== 1 ? 's' : ''}
-                {activeSearch && <span> matching <strong>{activeSearch}</strong></span>}
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Invoice #</th><th>Recipient</th><th>Campaign</th>
-                      <th>Status</th><th>Amount</th><th>Sent At</th><th>Retries</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map(inv => (
-                      <tr key={inv.id}>
-                        <td style={{ fontWeight: 500 }}>{inv.invoiceNumber}</td>
-                        <td>
-                          <div>{inv.recipientName ?? '—'}</div>
-                          <div className="text-sm text-muted">{inv.recipientEmail}</div>
-                        </td>
-                        <td className="text-sm text-muted">{inv.campaignName ?? '—'}</td>
-                        <td>
-                          <StatusBadge status={inv.status} />
-                          {inv.errorMessage && (
-                            <div className="text-sm" style={{ color: '#dc2626', marginTop: 2, maxWidth: 200, wordBreak: 'break-word' }}>
-                              {inv.errorMessage}
-                            </div>
-                          )}
-                        </td>
-                        <td>{inv.currency && inv.totalAmount ? `${inv.currency} ${Number(inv.totalAmount).toLocaleString()}` : '—'}</td>
-                        <td className="text-sm text-muted">{inv.sentAt ? new Date(inv.sentAt).toLocaleString() : '—'}</td>
-                        <td>{inv.retryCount ?? 0}</td>
-                        <td>
-                          <button className="btn btn-secondary btn-sm" onClick={() => setSelected(inv)}>
-                            <Eye size={13} /> View
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  <div className="text-sm text-muted mb-4">
+                    {invoices.length} record{invoices.length !== 1 ? 's' : ''}
+                    {activeSearch && <span> matching <strong>{activeSearch}</strong></span>}
+                    {totalElements > 0 && (
+                      <span>
+                        &nbsp;of <strong>{totalElements.toLocaleString()}</strong>
+                      </span>
+                    )}
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Invoice #</th><th>Recipient</th><th>Campaign</th>
+                          <th>Status</th><th>Amount</th><th>Sent At</th><th>Retries</th><th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoices.map(inv => (
+                          <tr key={inv.id}>
+                            <td style={{ fontWeight: 500 }}>{inv.invoiceNumber}</td>
+                            <td>
+                              <div>{inv.recipientName ?? '—'}</div>
+                              <div className="text-sm text-muted">{inv.recipientEmail}</div>
+                            </td>
+                            <td className="text-sm text-muted">{inv.campaignName ?? '—'}</td>
+                            <td>
+                              <StatusBadge status={inv.status} />
+                              {inv.errorMessage && (
+                                <div className="text-sm" style={{ color: '#dc2626', marginTop: 2, maxWidth: 200, wordBreak: 'break-word' }}>
+                                  {inv.errorMessage}
+                                </div>
+                              )}
+                            </td>
+                            <td>{inv.currency && inv.totalAmount ? `${inv.currency} ${Number(inv.totalAmount).toLocaleString()}` : '—'}</td>
+                            <td className="text-sm text-muted">{inv.sentAt ? new Date(inv.sentAt).toLocaleString() : '—'}</td>
+                            <td>{inv.retryCount ?? 0}</td>
+                            <td>
+                              <button className="btn btn-secondary btn-sm" onClick={() => setSelected(inv)}>
+                                <Eye size={13} /> View
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="pagination-controls mt-4 flex justify-center items-center space-x-2">
+                      <button
+                        className="btn btn-secondary btn-sm flex items-center"
+                        onClick={() => setPage(Math.max(0, page - 1))}
+                        disabled={page === 0}
+                      >
+                        <ChevronLeft size={16} />
+                        <span className="ml-1">Previous</span>
+                      </button>
+                      <span className="text-sm">
+                        Page {page + 1} of {totalPages}
+                      </span>
+                      <button
+                        className="btn btn-secondary btn-sm flex items-center"
+                        onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                        disabled={page === totalPages - 1}
+                      >
+                        <span className="mr-1">Next</span>
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
             </>
           ) : null}
         </div>

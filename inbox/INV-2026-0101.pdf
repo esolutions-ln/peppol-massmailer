@@ -1,0 +1,47 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842]
+   /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 327 >>
+stream
+BT
+/F1 18 Tf 50 800 Td (Vendor Ltd - Tax Invoice) Tj
+/F1 12 Tf 50 770 Td (INV-2026-0101) Tj
+/F1 10 Tf 50 740 Td (Date: 2026-03-01) Tj
+/F1 10 Tf 50 720 Td (Due: 2026-03-31) Tj
+/F1 10 Tf 50 690 Td (Total: USD 850.00) Tj
+/F1 10 Tf 50 670 Td (VAT: USD 127.50) Tj
+/F1 10 Tf 50 630 Td (--- ZIMRA Fiscal Block ---) Tj
+/F1 10 Tf 50 610 Td (Device ID: FD-SN-12345) Tj
+/F1 10 Tf 50 590 Td (Fiscal Day: 60) Tj
+/F1 10 Tf 50 570 Td (Fiscal Invoice Number: 10002) Tj
+/F1 10 Tf 50 550 Td (Verification Code: CCCC-DDDD-2222) Tj
+/F1 10 Tf 50 530 Td (Verification URL: https://fdms.zimra.co.zw/verify?code=CCCC-DDDD-2222) Tj
+/F1 10 Tf 50 510 Td (CCCC-DDDD-2222) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000266 00000 n 
+0000000669 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >]
+startxref
+727
+%%EOF

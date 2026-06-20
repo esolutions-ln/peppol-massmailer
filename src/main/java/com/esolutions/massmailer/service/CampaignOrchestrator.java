@@ -2,6 +2,10 @@ package com.esolutions.massmailer.service;
 
 import com.esolutions.massmailer.billing.service.MeteringService;
 import com.esolutions.massmailer.config.MailerProperties;
+import com.esolutions.massmailer.customer.model.Contact;
+import com.esolutions.massmailer.customer.model.Customer;
+import com.esolutions.massmailer.customer.repository.CustomerRepository;
+import com.esolutions.massmailer.customer.service.ContactService;
 import com.esolutions.massmailer.domain.model.CanonicalInvoice;
 import com.esolutions.massmailer.dto.MailDtos.*;
 import com.esolutions.massmailer.exception.CampaignNotFoundException;
@@ -19,6 +23,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.StructuredTaskScope;
 
@@ -47,6 +54,9 @@ public class CampaignOrchestrator {
     private final MeteringService meteringService;
     private final OrganizationRepository orgRepo;
     private final WebhookDeliveryService webhookService;
+    private final ContactService contactService;
+    private final CustomerRepository customerRepo;
+    private final PdfInvoiceParser pdfInvoiceParser;
 
     public CampaignOrchestrator(CampaignRepository campaignRepo,
                                  RecipientRepository recipientRepo,
@@ -58,7 +68,10 @@ public class CampaignOrchestrator {
                                  ObjectMapper objectMapper,
                                  MeteringService meteringService,
                                  OrganizationRepository orgRepo,
-                                 WebhookDeliveryService webhookService) {
+                                 WebhookDeliveryService webhookService,
+                                 ContactService contactService,
+                                 CustomerRepository customerRepo,
+                                 PdfInvoiceParser pdfInvoiceParser) {
         this.campaignRepo = campaignRepo;
         this.recipientRepo = recipientRepo;
         this.smtpService = smtpService;
@@ -70,6 +83,9 @@ public class CampaignOrchestrator {
         this.meteringService = meteringService;
         this.orgRepo = orgRepo;
         this.webhookService = webhookService;
+        this.contactService = contactService;
+        this.customerRepo = customerRepo;
+        this.pdfInvoiceParser = pdfInvoiceParser;
     }
 
     // ══════════════════════════════════════════════
@@ -121,6 +137,81 @@ public class CampaignOrchestrator {
 
         recipientRepo.saveAll(recipients);
         campaign.setRecipients(new ArrayList<>(recipients));
+
+        if (request.organizationId() != null) {
+            UUID orgId = request.organizationId();
+            Map<String, MailRecipient> recipientByEmail = new java.util.HashMap<>();
+            for (var rec : recipients) {
+                recipientByEmail.put(rec.getEmail(), rec);
+            }
+            for (var r : request.recipients()) {
+                try {
+                    String email = r.email().trim().toLowerCase();
+                    String recipientName = r.name();
+
+                    PdfInvoiceParser.ExtractedBuyerInfo buyerInfo = null;
+                    if ((r.pdfFilePath() != null && !r.pdfFilePath().isBlank())
+                            || (r.pdfBase64() != null && !r.pdfBase64().isBlank())) {
+                        try {
+                            byte[] pdfBytes = readPdfBytes(r);
+                            if (pdfBytes != null) {
+                                buyerInfo = pdfInvoiceParser.extractBuyerInfo(pdfBytes);
+                            }
+                        } catch (Exception ex) {
+                            log.debug("Failed to parse PDF for buyer info: {}", ex.getMessage());
+                        }
+                    }
+
+                    String companyName = buyerInfo != null && buyerInfo.companyName() != null
+                            ? buyerInfo.companyName() : recipientName;
+                    String contactName = recipientName;
+
+                    UUID customerId;
+                    String accountNo = buyerInfo != null ? buyerInfo.accountNo() : null;
+                    var existingContact = contactService.findByEmail(email);
+                    if (existingContact.isPresent()) {
+                        Contact c = existingContact.get();
+                        customerId = c.getCustomerId();
+                        if (contactName != null) {
+                            contactService.upsert(c.getCustomerId(), email, contactName, null);
+                        }
+                    } else {
+                        Optional<Customer> customerByAccount = Optional.empty();
+                        if (accountNo != null && !accountNo.isBlank()) {
+                            customerByAccount = customerRepo.findByOrganizationIdAndErpCustomerId(orgId, accountNo);
+                        }
+
+                        Customer customer;
+                        if (customerByAccount.isPresent()) {
+                            customer = customerByAccount.get();
+                        } else {
+                            customer = Customer.builder()
+                                    .organizationId(orgId)
+                                    .erpCustomerId(accountNo != null && !accountNo.isBlank()
+                                            ? accountNo : UUID.randomUUID().toString())
+                                    .companyName(companyName)
+                                    .tinNumber(buyerInfo != null ? buyerInfo.tinNumber() : null)
+                                    .vatNumber(buyerInfo != null ? buyerInfo.vatNumber() : null)
+                                    .bpn(buyerInfo != null ? buyerInfo.bpn() : null)
+                                    .addressLine1(buyerInfo != null ? buyerInfo.addressLine1() : null)
+                                    .build();
+                            customer = customerRepo.save(customer);
+                        }
+                        contactService.upsert(customer.getId(), email, contactName, null);
+                        customerId = customer.getId();
+                    }
+
+                    MailRecipient rec = recipientByEmail.get(email);
+                    if (rec != null) {
+                        rec.setCustomerId(customerId);
+                        rec.setAccountNumber(accountNo);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to register customer contact for {}: {}", r.email(), e.getMessage());
+                }
+            }
+            recipientRepo.saveAll(recipients);
+        }
 
         log.info("Campaign '{}' created with {} invoice recipients [id={}]",
                 campaign.getName(), recipients.size(), campaign.getId());
@@ -301,7 +392,8 @@ public class CampaignOrchestrator {
         return smtpService.sendWithFallback(
                 recipient.getEmail(), recipient.getName(),
                 campaign.getSubject(), html,
-                invoiceNum, pdf);
+                invoiceNum, pdf,
+                recipient.getAccountNumber(), null);
     }
 
     /**
@@ -525,5 +617,47 @@ public class CampaignOrchestrator {
         try { Thread.sleep(ms); } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private byte[] readPdfBytes(InvoiceRecipientEntry r) {
+        String pdfFilePath = r.pdfFilePath();
+        String pdfBase64 = r.pdfBase64();
+
+        if (pdfFilePath != null && !pdfFilePath.isBlank()) {
+            Path filePath = Path.of(pdfFilePath).toAbsolutePath().normalize();
+            if (props.pdfInboxBasePath() != null) {
+                Path allowed = Path.of(props.pdfInboxBasePath()).toAbsolutePath().normalize();
+                if (!filePath.startsWith(allowed)) {
+                    log.warn("PDF path outside inbox: {}", pdfFilePath);
+                    return null;
+                }
+            }
+            if (!Files.exists(filePath) || !Files.isReadable(filePath)) {
+                return null;
+            }
+            try {
+                long size = Files.size(filePath);
+                if (size > props.maxPdfBytes()) {
+                    log.warn("PDF exceeds max size: {} > {}", size, props.maxPdfBytes());
+                    return null;
+                }
+                return Files.readAllBytes(filePath);
+            } catch (IOException e) {
+                log.debug("Failed to read PDF file: {}", e.getMessage());
+                return null;
+            }
+        }
+
+        if (pdfBase64 != null && !pdfBase64.isBlank()) {
+            try {
+                long maxEncodedLen = (long) Math.ceil(4.0 * props.maxPdfBytes() / 3.0);
+                if (pdfBase64.length() > maxEncodedLen) return null;
+                return Base64.getDecoder().decode(pdfBase64);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+
+        return null;
     }
 }

@@ -6,7 +6,8 @@ import type {
   AccessPoint, PeppolDelivery, PeppolInboundDoc, PeppolHealth,
   ParticipantLink, CreateParticipantLinkRequest,
   PeppolDeliveryStats, PeppolInvitation, TokenValidationResponse,
-  PageResponse, OrgMember, OrgLoginResponse, OrgMemberRole
+  PeppolCertificate, PeppolCertUploadRequest, PeppolActiveCertResponse,
+  OrgMember, OrgLoginResponse, OrgMemberRole, DeliveryMode
 } from '../types'
 
 const BASE = '/api/v1'
@@ -259,8 +260,13 @@ export const getMyCampaignDetail = (
 
 export const getMyInvoices = (
   apiKey?: string, params?: Record<string, string>
-): Promise<AxiosResponse<InvoiceRecord[]>> =>
+): Promise<AxiosResponse<PageResponse<InvoiceRecord>>> =>
   axios.get(`${BASE}/my/invoices`, { headers: authHeaders(apiKey), params })
+
+export const getCustomerInvoices = (
+  customerId: string, apiKey?: string, params?: Record<string, string>
+): Promise<AxiosResponse<PageResponse<InvoiceRecord>>> =>
+  axios.get(`${BASE}/my/customers/${customerId}/invoices`, { headers: authHeaders(apiKey), params })
 
 export const getMyInvoiceByNumber = (
   invoiceNumber: string, apiKey?: string
@@ -300,6 +306,18 @@ export const getUsageRecordsAdmin = (
   orgId: string, period: string
 ): Promise<AxiosResponse<UsageRecord[]>> =>
   axios.get(`${BASE}/billing/usage/${orgId}/${period}`)
+
+// ─── Admin PEPPOL Onboarding ────────────────────────────────────────────────
+export const adminPeppolOnboard = (orgId: string, data: {
+  deliveryMode: DeliveryMode
+  participantName: string
+  endpointUrl: string
+  simplifiedHttpDelivery?: boolean
+  peppolParticipantId?: string
+  certificate?: string
+  deliveryAuthToken?: string
+}): Promise<AxiosResponse<unknown>> =>
+  axios.post(`${BASE}/admin/orgs/${orgId}/peppol/onboard`, data)
 
 // ─── eRegistry (PEPPOL) ───────────────────────────────────────────────────────
 export const registerAccessPoint = (data: Partial<AccessPoint>, apiKey?: string): Promise<AxiosResponse<AccessPoint>> =>
@@ -366,6 +384,27 @@ export const completeInvitation = (
 ): Promise<{ participantId: string; endpointUrl: string }> =>
   axios.post<{ participantId: string; endpointUrl: string }>(`${BASE}/invitations/${token}/complete`, data)
     .then(r => r.data)
+
+// ─── PEPPOL PKI (Certificate Management) ──────────────────────────────────────
+export const adminPeppolUploadCert = (
+  orgId: string, data: PeppolCertUploadRequest
+): Promise<AxiosResponse<PeppolCertificate>> =>
+  axios.post(`${BASE}/admin/orgs/${orgId}/peppol/certs`, data)
+
+export const adminPeppolRotateCert = (
+  orgId: string, data: PeppolCertUploadRequest
+): Promise<AxiosResponse<PeppolCertificate>> =>
+  axios.post(`${BASE}/admin/orgs/${orgId}/peppol/certs/rotate`, data)
+
+export const adminPeppolGetActiveCert = (
+  orgId: string
+): Promise<AxiosResponse<PeppolActiveCertResponse>> =>
+  axios.get(`${BASE}/admin/orgs/${orgId}/peppol/certs/active`)
+
+export const adminPeppolListCerts = (
+  orgId: string
+): Promise<AxiosResponse<PeppolCertificate[]>> =>
+  axios.get(`${BASE}/admin/orgs/${orgId}/peppol/certs`)
 
 // ─── Email Templates ─────────────────────────────────────────────────────────
 export interface EmailTemplate {

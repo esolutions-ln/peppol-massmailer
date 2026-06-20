@@ -1,6 +1,6 @@
 package com.esolutions.massmailer.peppol.schematron;
 
-import net.sf.saxon.TransformerFactoryImpl;
+import com.helger.schematron.sch.SchematronResourceSCH;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -11,32 +11,24 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.Templates;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamSource;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Saxon-HE based Schematron validator.
+ * ISO Schematron validator using ph-schematron-xslt (proper 3-phase pipeline).
  *
- * <p>Compiles the PEPPOL EN16931 Schematron rules (pre-compiled XSLT 2.0) from the
- * classpath once and caches per profileId. The XSLT transform is run against the
- * UBL DOM and the resulting SVRL document is parsed for {@code svrl:failed-assert}
- * elements.
+ * <p>Compiles the PEPPOL EN16931 Schematron .sch file to XSLT via the
+ * iso-schematron-xslt2 pipeline (include resolution &rarr; abstract expand &rarr;
+ * SVRL compile). The compiled XSLT is cached internally by {@link SchematronResourceSCH}.
  *
- * <p><b>Fail-closed semantics:</b> if the schematron resource is missing, is a known
- * placeholder/stub, or fails to compile, validation refuses to operate. Every
- * {@link #validate} call returns a {@link SchematronResult} containing a fatal
- * {@code PEPPOL-RULES-NOT-INSTALLED} violation — the caller (e.g. PeppolDeliveryService)
- * then fails the delivery rather than silently accepting an unvalidated document.
+ * <p><b>Fail-closed semantics:</b> if compilation fails, all validate() calls
+ * return a fatal {@code PEPPOL-RULES-NOT-INSTALLED} violation.
  */
 @Component
 public class SchematronValidatorImpl implements SchematronValidator {
@@ -48,60 +40,71 @@ public class SchematronValidatorImpl implements SchematronValidator {
     private static final String FAILED_ASSERT = "failed-assert";
     private static final String STUB_MARKER = "STUB FILE";
 
-    /** Cache of compiled XSLT transforms keyed by profileId. */
-    private final ConcurrentHashMap<String, Templates> transformCache = new ConcurrentHashMap<>();
-
-    /** Saxon-HE TransformerFactory — supports XSLT 2.0. */
-    private final TransformerFactory transformerFactory = new TransformerFactoryImpl();
-
-    /** Marker that the configured rules file is a placeholder (no real assertions). */
-    private final boolean rulesAreStub;
+    private final SchematronResourceSCH schematron;
+    private final boolean rulesAvailable;
 
     public SchematronValidatorImpl() {
-        this.rulesAreStub = detectStub();
-        if (rulesAreStub) {
-            log.error("PEPPOL Schematron ruleset at classpath:{} is a STUB. All inbound and outbound " +
-                    "PEPPOL documents will FAIL validation until the real OpenPEPPOL EN16931 XSLT is " +
-                    "installed. Download from https://github.com/OpenPEPPOL/peppol-bis-invoice-3/releases.",
-                    SCH_CLASSPATH);
+        ClassPathResource resource = new ClassPathResource(SCH_CLASSPATH);
+        if (!resource.exists()) {
+            log.error("Schematron ruleset not present on classpath: {}", SCH_CLASSPATH);
+            schematron = null;
+            rulesAvailable = false;
+            return;
         }
+
+        // Check for stub
+        boolean stub = false;
+        try (InputStream is = resource.getInputStream()) {
+            String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            if (content.contains(STUB_MARKER) || !content.contains("<assert")) {
+                log.error("PEPPOL Schematron ruleset at classpath:{} is a STUB. " +
+                        "All PEPPOL documents will FAIL validation.", SCH_CLASSPATH);
+                stub = true;
+            }
+        } catch (Exception e) {
+            log.error("Could not read Schematron resource {}: {}", SCH_CLASSPATH, e.getMessage());
+            schematron = null;
+            rulesAvailable = false;
+            return;
+        }
+
+        if (stub) {
+            this.schematron = null;
+            this.rulesAvailable = false;
+            return;
+        }
+
+        // Initialize ph-schematron resource
+        SchematronResourceSCH compiled = null;
+        boolean ok = false;
+        try {
+            compiled = SchematronResourceSCH.fromClassPath(SCH_CLASSPATH);
+            compiled.setUseCache(true);
+
+            // Warm up: force 3-phase compilation at startup
+            String dummy = "<?xml version='1.0'?><dummy/>";
+            compiled.applySchematronValidation(new StreamSource(new StringReader(dummy)));
+            int count = countAssertions(resource);
+            log.info("Successfully compiled PEPPOL EN16931 Schematron rules ({} assertions present).", count);
+            ok = true;
+        } catch (Exception e) {
+            log.error("Failed to compile Schematron rules: {}", e.getMessage(), e);
+        }
+        this.schematron = compiled;
+        this.rulesAvailable = ok;
     }
 
     @Override
     public SchematronResult validate(String ublXml, String profileId) {
-        if (rulesAreStub) {
+        if (!rulesAvailable || schematron == null) {
             return rulesMissingResult();
         }
-        Templates templates = transformCache.computeIfAbsent(profileId, this::compileSchematron);
-        if (templates == null) {
-            return rulesMissingResult();
-        }
-        return executeValidation(templates, ublXml);
+        return executeValidation(ublXml);
     }
 
     // -------------------------------------------------------------------------
-    // Stub detection / fail-closed result
+    // Implementation
     // -------------------------------------------------------------------------
-
-    private boolean detectStub() {
-        ClassPathResource resource = new ClassPathResource(SCH_CLASSPATH);
-        if (!resource.exists()) {
-            log.error("Schematron ruleset not present on classpath: {}", SCH_CLASSPATH);
-            return true;
-        }
-        try (InputStream is = resource.getInputStream()) {
-            String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            // Real OpenPEPPOL XSLT contains thousands of <assert> nodes;
-            // the stub has none and carries an explicit marker.
-            if (content.contains(STUB_MARKER) || !content.contains("<assert")) {
-                return true;
-            }
-        } catch (Exception e) {
-            log.error("Could not read Schematron resource {}: {}", SCH_CLASSPATH, e.getMessage());
-            return true;
-        }
-        return false;
-    }
 
     private SchematronResult rulesMissingResult() {
         SchematronViolation v = new SchematronViolation(
@@ -114,39 +117,15 @@ public class SchematronValidatorImpl implements SchematronValidator {
         return new SchematronResult(false, List.of(v));
     }
 
-    // -------------------------------------------------------------------------
-    // Compilation and execution
-    // -------------------------------------------------------------------------
-
-    private Templates compileSchematron(String profileId) {
-        ClassPathResource resource = new ClassPathResource(SCH_CLASSPATH);
-        if (!resource.exists()) {
-            log.error("Schematron file not found on classpath: {}", SCH_CLASSPATH);
-            return null;
-        }
-        try (InputStream is = resource.getInputStream()) {
-            StreamSource source = new StreamSource(is, resource.getURL().toExternalForm());
-            Templates compiled = transformerFactory.newTemplates(source);
-            log.info("Compiled Schematron rules for profileId={}", profileId);
-            return compiled;
-        } catch (Exception e) {
-            log.error("Could not compile Schematron rules for {}: {}", profileId, e.getMessage());
-            return null;
-        }
-    }
-
-    private SchematronResult executeValidation(Templates templates, String ublXml) {
+    private SchematronResult executeValidation(String ublXml) {
         try {
             DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             dbf.setNamespaceAware(true);
             DocumentBuilder db = dbf.newDocumentBuilder();
             Document ublDoc = db.parse(new ByteArrayInputStream(ublXml.getBytes(StandardCharsets.UTF_8)));
 
-            Transformer transformer = templates.newTransformer();
-            DOMResult svrlResult = new DOMResult();
-            transformer.transform(new DOMSource(ublDoc), svrlResult);
+            Document svrlDoc = schematron.applySchematronValidation(new DOMSource(ublDoc));
 
-            Document svrlDoc = (Document) svrlResult.getNode();
             List<SchematronViolation> violations = parseSvrl(svrlDoc);
 
             boolean valid = violations.stream().noneMatch(SchematronViolation::isFatal);
@@ -188,5 +167,19 @@ public class SchematronValidatorImpl implements SchematronValidator {
             return textNodes.item(0).getTextContent().trim();
         }
         return element.getTextContent().trim();
+    }
+
+    private int countAssertions(ClassPathResource resource) {
+        try (InputStream is = resource.getInputStream()) {
+            String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            int idx = 0, count = 0;
+            while ((idx = content.indexOf("<assert", idx)) != -1) {
+                count++;
+                idx += 7;
+            }
+            return count;
+        } catch (Exception e) {
+            return -1;
+        }
     }
 }

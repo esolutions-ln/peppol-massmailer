@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import {
   listAccessPoints, registerAccessPoint, updateAccessPointStatus,
   getPeppolDeliveries, getPeppolInbox, getPeppolHealth,
-  listParticipantLinks, createParticipantLink, deleteParticipantLink
+  listParticipantLinks, createParticipantLink, deleteParticipantLink,
+  adminPeppolOnboard, listOrgsPaged,
+  adminPeppolUploadCert, adminPeppolRotateCert,
+  adminPeppolGetActiveCert, adminPeppolListCerts
 } from '../../api/client'
-import { Network, Plus, X, RefreshCw, CheckCircle, XCircle, Link } from 'lucide-react'
-import type { AccessPoint, PeppolDelivery, PeppolInboundDoc, PeppolHealth, ParticipantLink } from '../../types'
+import { Network, Plus, X, RefreshCw, CheckCircle, XCircle, Link, Building2, Shield, ShieldOff } from 'lucide-react'
+import type { AccessPoint, PeppolDelivery, PeppolInboundDoc, PeppolHealth, ParticipantLink, Organization, PeppolCertificate, PeppolCertUploadRequest, PeppolActiveCertResponse } from '../../types'
 import { useAuth } from '../../context/AuthContext'
 
 function StatusBadge({ status }: { status: string }) {
@@ -292,6 +295,196 @@ function ParticipantLinksTab({ orgId }: { orgId: string }) {
   )
 }
 
+function OnboardOrgModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [orgs, setOrgs] = useState<Organization[]>([])
+  const [selectedOrgId, setSelectedOrgId] = useState('')
+  const [form, setForm] = useState({
+    peppolParticipantId: '',
+    deliveryMode: 'AS4' as 'AS4' | 'BOTH',
+    participantName: '',
+    endpointUrl: '',
+    simplifiedHttpDelivery: true,
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    listOrgsPaged({ size: 200 }).then(r => setOrgs(r.data.content ?? [])).catch(() => {})
+  }, [])
+
+  const selectedOrg = orgs.find(o => o.id === selectedOrgId)
+
+  const handleOrgChange = (orgId: string) => {
+    setSelectedOrgId(orgId)
+    const org = orgs.find(o => o.id === orgId)
+    if (org) {
+      setForm(f => ({
+        ...f,
+        peppolParticipantId: org.peppolParticipantId ?? '',
+        participantName: org.name ?? '',
+      }))
+    }
+  }
+
+  const set = (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedOrgId) return
+    setSaving(true)
+    setError('')
+    try {
+      await adminPeppolOnboard(selectedOrgId, form)
+      onSaved()
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? err.response?.data ?? 'Onboarding failed.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: 520 }}>
+        <div className="modal-header">
+          <span className="modal-title">Quick Onboard — PEPPOL</span>
+          <button className="close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        {error && <div className="alert alert-error">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Organization *</label>
+            <select value={selectedOrgId} onChange={e => handleOrgChange(e.target.value)} required>
+              <option value="">— Select org —</option>
+              {orgs.map(o => (
+                <option key={o.id} value={o.id}>
+                  {o.name} ({o.slug}) — {o.deliveryMode}{o.peppolParticipantId ? ` — ${o.peppolParticipantId}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid-2">
+            <div className="form-group">
+              <label>Delivery Mode</label>
+              <select value={form.deliveryMode} onChange={set('deliveryMode')}>
+                <option value="AS4">PEPPOL AS4 only</option>
+                <option value="BOTH">Email + AS4</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Participant ID</label>
+              <input value={form.peppolParticipantId} onChange={set('peppolParticipantId')}
+                     placeholder="Auto-derived from VAT/TIN" />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Participant Name *</label>
+            <input value={form.participantName} onChange={set('participantName')} required />
+          </div>
+          <div className="form-group">
+            <label>Gateway Endpoint URL *</label>
+            <input value={form.endpointUrl} onChange={set('endpointUrl')}
+                   placeholder="https://ap.invoicedirect.biz/peppol/as4/receive" required />
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" style={{ width: 'auto' }}
+                     checked={form.simplifiedHttpDelivery}
+                     onChange={e => setForm(f => ({ ...f, simplifiedHttpDelivery: e.target.checked }))} />
+              Use simplified HTTP delivery
+            </label>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? <span className="spinner" /> : 'Onboard'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function CertModal({ mode, orgId, onClose, onSaved }: { mode: 'upload' | 'rotate'; orgId: string; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ certificatePem: '', privateKeyPem: '', description: '' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!orgId.trim()) { setError('Enter an Organization ID in the search field first.'); return }
+    setSaving(true)
+    setError('')
+    try {
+      const data: PeppolCertUploadRequest = {
+        certificatePem: form.certificatePem.trim(),
+        privateKeyPem: form.privateKeyPem.trim(),
+        description: form.description.trim() || undefined
+      }
+      if (mode === 'rotate') {
+        await adminPeppolRotateCert(orgId.trim(), data)
+      } else {
+        await adminPeppolUploadCert(orgId.trim(), data)
+      }
+      onSaved()
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? err.response?.data ?? 'Operation failed.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: 600 }}>
+        <div className="modal-header">
+          <span className="modal-title">{mode === 'rotate' ? 'Rotate Certificate' : 'Upload Certificate'}</span>
+          <button className="close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        {error && <div className="alert alert-error">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Certificate (PEM) *</label>
+            <textarea
+              value={form.certificatePem}
+              onChange={set('certificatePem')}
+              placeholder="-----BEGIN CERTIFICATE-----\n..."
+              rows={6} required
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </div>
+          <div className="form-group">
+            <label>Private Key (PEM) *</label>
+            <textarea
+              value={form.privateKeyPem}
+              onChange={set('privateKeyPem')}
+              placeholder="-----BEGIN PRIVATE KEY-----\n..."
+              rows={6} required
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </div>
+          <div className="form-group">
+            <label>Description (optional)</label>
+            <input value={form.description} onChange={set('description')} placeholder="e.g. Production cert 2026" />
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? <span className="spinner" /> : mode === 'rotate' ? 'Rotate' : 'Upload'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function PeppolPage() {
   const { session } = useAuth()
   const [tab, setTab] = useState('access-points')
@@ -301,7 +494,13 @@ export default function PeppolPage() {
   const [health, setHealth] = useState<PeppolHealth | null>(null)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [showOnboard, setShowOnboard] = useState(false)
   const [orgIdFilter, setOrgIdFilter] = useState('')
+  const [certs, setCerts] = useState<PeppolCertificate[]>([])
+  const [activeCert, setActiveCert] = useState<PeppolActiveCertResponse | null>(null)
+  const [certsOrgId, setCertsOrgId] = useState('')
+  const [showCertModal, setShowCertModal] = useState(false)
+  const [certModalMode, setCertModalMode] = useState<'upload' | 'rotate'>('upload')
 
   const loadAccessPoints = () => {
     setLoading(true)
@@ -324,12 +523,20 @@ export default function PeppolPage() {
     getPeppolHealth().then(r => setHealth(r.data)).catch(() => setHealth({ status: 'DOWN' }))
   }
 
+  const loadCerts = (orgId: string) => {
+    if (!orgId.trim()) { setCerts([]); setActiveCert(null); return }
+    setCertsOrgId(orgId.trim())
+    adminPeppolListCerts(orgId.trim()).then(r => setCerts(r.data ?? [])).catch(() => setCerts([]))
+    adminPeppolGetActiveCert(orgId.trim()).then(r => setActiveCert(r.data)).catch(() => setActiveCert(null))
+  }
+
   useEffect(() => { loadHealth(); loadAccessPoints() }, [])
 
   useEffect(() => {
     if (tab === 'access-points') loadAccessPoints()
     else if (tab === 'deliveries') loadDeliveries()
     else if (tab === 'inbox') loadInbox()
+    else if (tab === 'certificates') loadCerts(certsOrgId)
   }, [tab])
 
   const handleSuspend = async (ap: AccessPoint) => {
@@ -357,9 +564,9 @@ export default function PeppolPage() {
         </div>
 
         <div className="flex gap-2 mb-4">
-          {['access-points', 'participant-links', 'deliveries', 'inbox'].map(t => (
+          {['access-points', 'participant-links', 'deliveries', 'inbox', 'certificates', 'onboard'].map(t => (
             <button key={t} className={`btn btn-sm ${tab === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab(t)}>
-              {t === 'access-points' ? 'Access Points' : t === 'participant-links' ? 'Participant Links' : t === 'deliveries' ? 'Delivery History' : 'Inbound Inbox'}
+              {t === 'access-points' ? 'Access Points' : t === 'participant-links' ? 'Participant Links' : t === 'deliveries' ? 'Delivery History' : t === 'inbox' ? 'Inbound Inbox' : t === 'certificates' ? 'Certificates' : 'Onboard Org'}
             </button>
           ))}
         </div>
@@ -471,9 +678,98 @@ export default function PeppolPage() {
             )}
           </div>
         )}
+
+        {tab === 'onboard' && (
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Quick Onboard</span>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowOnboard(true)}>
+                <Building2 size={14} /> Onboard Organization
+              </button>
+            </div>
+            <div className="empty-state">
+              <Building2 size={32} />
+              <p>Select an organization and configure its PEPPOL gateway in one step.</p>
+              <p className="text-sm text-muted">Sets the org's participant ID, delivery mode, and registers a GATEWAY Access Point.</p>
+            </div>
+          </div>
+        )}
+
+        {tab === 'certificates' && (
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Certificate Management</span>
+              <div className="flex gap-2">
+                <button className="btn btn-primary btn-sm" onClick={() => { setCertModalMode('upload'); setShowCertModal(true) }}>
+                  <Shield size={14} /> Upload Certificate
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => { setCertModalMode('rotate'); setShowCertModal(true) }}>
+                  <RefreshCw size={14} /> Rotate
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group mb-4" style={{ maxWidth: 400 }}>
+              <label>Organization ID</label>
+              <div className="flex gap-2">
+                <input
+                  value={certsOrgId}
+                  onChange={e => setCertsOrgId(e.target.value)}
+                  placeholder="Enter organization UUID"
+                  style={{ flex: 1 }}
+                />
+                <button className="btn btn-primary btn-sm" onClick={() => loadCerts(certsOrgId)}>
+                  <RefreshCw size={14} />
+                </button>
+              </div>
+            </div>
+
+            {activeCert && (
+              <div className="mb-4" style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+                <div className="flex gap-2" style={{ alignItems: 'center', marginBottom: 8 }}>
+                  <Shield size={16} style={{ color: '#16a34a' }} />
+                  <strong style={{ color: '#166534' }}>Active Certificate</strong>
+                </div>
+                <div className="grid-2 text-sm" style={{ gap: 4 }}>
+                  <span className="text-muted">Subject:</span><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{activeCert.subjectDn}</span>
+                  <span className="text-muted">Issuer:</span><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{activeCert.issuerDn}</span>
+                  <span className="text-muted">Serial:</span><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{activeCert.serialNumber}</span>
+                  <span className="text-muted">Valid:</span><span style={{ fontSize: 12 }}>{new Date(activeCert.validFrom).toLocaleDateString()} — {new Date(activeCert.validTo).toLocaleDateString()}</span>
+                </div>
+              </div>
+            )}
+
+            {certs.length === 0 ? (
+              <div className="empty-state"><ShieldOff size={32} /><p>{certsOrgId ? 'No certificates found for this organization.' : 'Enter an Organization ID to search.'}</p></div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Subject DN</th><th>Issuer DN</th><th>Serial</th><th>Valid From</th><th>Valid To</th><th>Status</th><th>Uploaded</th></tr></thead>
+                  <tbody>
+                    {certs.map(c => (
+                      <tr key={c.id}>
+                        <td style={{ fontFamily: 'monospace', fontSize: 12, maxWidth: 200, wordBreak: 'break-all' }}>{c.subjectDn}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 12, maxWidth: 200, wordBreak: 'break-all' }}>{c.issuerDn}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{c.serialNumber.length > 16 ? c.serialNumber.slice(0, 16) + '…' : c.serialNumber}</td>
+                        <td className="text-sm text-muted">{new Date(c.validFrom).toLocaleDateString()}</td>
+                        <td className="text-sm text-muted">{new Date(c.validTo).toLocaleDateString()}</td>
+                        <td>
+                          <span className={`badge ${c.status === 'ACTIVE' ? 'badge-green' : c.status === 'ROTATED' ? 'badge-yellow' : c.status === 'EXPIRED' ? 'badge-red' : 'badge-gray'}`}>{c.status}</span>
+                        </td>
+                        <td className="text-sm text-muted">{new Date(c.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {showModal && <RegisterAPModal apiKey={session?.apiKey} onClose={() => setShowModal(false)} onSave={() => { setShowModal(false); loadAccessPoints() }} />}
+      {showOnboard && <OnboardOrgModal onClose={() => setShowOnboard(false)} onSaved={() => { setShowOnboard(false); loadAccessPoints() }} />}
+      {showCertModal && <CertModal mode={certModalMode} orgId={certsOrgId} onClose={() => setShowCertModal(false)} onSaved={() => { setShowCertModal(false); loadCerts(certsOrgId) }} />}
     </>
   )
 }

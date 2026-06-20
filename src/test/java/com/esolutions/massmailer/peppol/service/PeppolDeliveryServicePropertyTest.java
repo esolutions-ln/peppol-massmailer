@@ -19,9 +19,12 @@ import com.esolutions.massmailer.peppol.model.PeppolParticipantLink;
 import com.esolutions.massmailer.peppol.repository.AccessPointRepository;
 import com.esolutions.massmailer.peppol.repository.PeppolDeliveryRecordRepository;
 import com.esolutions.massmailer.peppol.repository.PeppolParticipantLinkRepository;
+import com.esolutions.massmailer.peppol.pki.PeppolCertificate;
+import com.esolutions.massmailer.peppol.pki.PeppolCredentialStore;
 import com.esolutions.massmailer.peppol.schematron.SchematronResult;
 import com.esolutions.massmailer.peppol.schematron.SchematronValidator;
 import com.esolutions.massmailer.peppol.schematron.SchematronViolation;
+import com.esolutions.massmailer.peppol.smp.PeppolSmpClient;
 import com.esolutions.massmailer.peppol.ubl.UblInvoiceBuilder;
 import com.esolutions.massmailer.service.SmtpSendService;
 import com.esolutions.massmailer.service.TemplateRenderService;
@@ -30,6 +33,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -205,11 +210,21 @@ class PeppolDeliveryServicePropertyTest {
 
         TemplateRenderService templateRenderer = mock(TemplateRenderService.class);
         SmtpSendService smtpSendService = mock(SmtpSendService.class);
+        PeppolCredentialStore credentialStore = mock(PeppolCredentialStore.class);
+        PeppolSmpClient smpClient = mock(PeppolSmpClient.class);
+
+        if (!useSimplifiedHttp) {
+            X509Certificate mockCert = mock(X509Certificate.class);
+            PrivateKey mockKey = mock(PrivateKey.class);
+            PeppolCertificate mockEntity = mock(PeppolCertificate.class);
+            when(credentialStore.loadActive(eq(ORG_ID)))
+                    .thenReturn(Optional.of(new PeppolCredentialStore.LoadedKeyMaterial(mockCert, mockKey, mockEntity)));
+        }
 
         return new PeppolDeliveryService(
                 apRepo, linkRepo, deliveryRepo, customerRepo, orgRepo,
                 ublBuilder, schematronValidator, restTemplate, as4Client,
-                templateRenderer, smtpSendService);
+                credentialStore, smpClient, templateRenderer, smtpSendService);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -389,11 +404,13 @@ class PeppolDeliveryServicePropertyTest {
 
         TemplateRenderService templateRenderer = mock(TemplateRenderService.class);
         SmtpSendService smtpSendService = mock(SmtpSendService.class);
+        PeppolCredentialStore credentialStore = mock(PeppolCredentialStore.class);
+        PeppolSmpClient smpClient = mock(PeppolSmpClient.class);
 
         return new PeppolDeliveryService(
                 apRepo, linkRepo, deliveryRepo, customerRepo, orgRepo,
                 ublBuilder, schematronValidator, restTemplate, as4Client,
-                templateRenderer, smtpSendService);
+                credentialStore, smpClient, templateRenderer, smtpSendService);
     }
 
     /**
@@ -539,9 +556,17 @@ class PeppolDeliveryServicePropertyTest {
                                     : "Simulated AS4 failure"));
         }
 
+        PeppolCredentialStore credentialStore = mock(PeppolCredentialStore.class);
+        X509Certificate mockCert = mock(X509Certificate.class);
+        PrivateKey mockKey = mock(PrivateKey.class);
+        PeppolCertificate mockEntity = mock(PeppolCertificate.class);
+        when(credentialStore.loadActive(any()))
+                .thenReturn(Optional.of(new PeppolCredentialStore.LoadedKeyMaterial(mockCert, mockKey, mockEntity)));
+
         return new PeppolDeliveryService(
                 apRepo, linkRepo, deliveryRepo, customerRepo, orgRepo,
                 ublBuilder, schematronValidator, restTemplate, as4Client,
+                credentialStore, mock(PeppolSmpClient.class),
                 mock(TemplateRenderService.class), mock(SmtpSendService.class));
     }
 

@@ -13,11 +13,14 @@ import com.esolutions.massmailer.peppol.model.AccessPoint;
 import com.esolutions.massmailer.peppol.model.PeppolDeliveryRecord;
 import com.esolutions.massmailer.peppol.model.PeppolDeliveryRecord.DeliveryStatus;
 import com.esolutions.massmailer.peppol.model.PeppolParticipantLink;
+import com.esolutions.massmailer.peppol.pki.PeppolCredentialStore;
 import com.esolutions.massmailer.peppol.repository.AccessPointRepository;
 import com.esolutions.massmailer.peppol.repository.PeppolDeliveryRecordRepository;
 import com.esolutions.massmailer.peppol.repository.PeppolParticipantLinkRepository;
 import com.esolutions.massmailer.peppol.schematron.SchematronValidationException;
 import com.esolutions.massmailer.peppol.schematron.SchematronValidator;
+import com.esolutions.massmailer.peppol.smp.PeppolSmpClient;
+import com.esolutions.massmailer.peppol.smp.SmpServiceMetadata;
 import com.esolutions.massmailer.peppol.ubl.UblInvoiceBuilder;
 import com.esolutions.massmailer.service.PdfAttachmentResolver;
 import com.esolutions.massmailer.service.SmtpSendService;
@@ -38,6 +41,7 @@ import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -79,6 +83,8 @@ public class PeppolDeliveryService {
     private final SchematronValidator schematronValidator;
     private final RestTemplate restTemplate;
     private final As4TransportClient as4Client;
+    private final PeppolCredentialStore credentialStore;
+    private final PeppolSmpClient smpClient;
     private final TemplateRenderService templateRenderer;
     private final SmtpSendService smtpSendService;
 
@@ -91,6 +97,8 @@ public class PeppolDeliveryService {
                                   SchematronValidator schematronValidator,
                                   RestTemplate restTemplate,
                                   As4TransportClient as4Client,
+                                  PeppolCredentialStore credentialStore,
+                                  PeppolSmpClient smpClient,
                                   TemplateRenderService templateRenderer,
                                   SmtpSendService smtpSendService) {
         this.apRepo = apRepo;
@@ -102,6 +110,8 @@ public class PeppolDeliveryService {
         this.schematronValidator = schematronValidator;
         this.restTemplate = restTemplate;
         this.as4Client = as4Client;
+        this.credentialStore = credentialStore;
+        this.smpClient = smpClient;
         this.templateRenderer = templateRenderer;
         this.smtpSendService = smtpSendService;
     }
@@ -270,9 +280,59 @@ public class PeppolDeliveryService {
      * Full AS4 delivery via ebMS 3.0 transport.
      * Delegates to {@link As4TransportClient} and updates the delivery record
      * with MDN details on success, or throws {@link As4TransportException} on failure.
+     * Resolves sender credentials from the PKI store and optionally queries the
+     * PEPPOL SMP for the receiver's endpoint and certificate.
      */
     private void transmitAs4(AccessPoint ap, String ublXml, PeppolDeliveryRecord record) {
-        As4Message message = buildAs4Message(record, ap, ublXml);
+        // Resolve sender credentials from PKI store
+        LoadedSenderCerts senderCerts = loadSenderCredentials(record.getOrganizationId());
+        if (senderCerts == null) {
+            throw new PeppolRoutingException(
+                    "No active PEPPOL certificate for org " + record.getOrganizationId()
+                    + ". Upload a PEPPOL AP certificate via the admin PKI API before AS4 delivery.");
+        }
+
+        // Resolve receiver endpoint + certificate — try SMP first, fall back to local AP
+        String endpointUrl = ap.getEndpointUrl();
+        X509Certificate receiverCert = null;
+
+        Optional<SmpServiceMetadata> smpMeta = smpClient.lookupServiceMetadata(
+                record.getReceiverParticipantId(), record.getDocumentTypeId());
+        if (smpMeta.isPresent()) {
+            SmpServiceMetadata meta = smpMeta.get();
+            endpointUrl = meta.endpointUrl();
+            receiverCert = meta.certificate();
+            log.info("Resolved receiver from SMP: {} → {} (cert={})",
+                    record.getReceiverParticipantId(), endpointUrl, receiverCert != null);
+        }
+
+        // Fall back to local AP certificate if SMP didn't provide one
+        if (receiverCert == null) {
+            receiverCert = parseCertificate(ap.getCertificate());
+        }
+        // Fall back to local AP endpoint if SMP didn't provide one
+        if (endpointUrl == null || endpointUrl.isBlank()) {
+            endpointUrl = ap.getEndpointUrl();
+        }
+        record.setDeliveredToEndpoint(endpointUrl);
+
+        if (receiverCert == null) {
+            log.warn("No receiver certificate available for {} — AS4 encryption will fail",
+                    record.getReceiverParticipantId());
+        }
+
+        As4Message message = new As4Message(
+                record.getSenderParticipantId(),
+                record.getReceiverParticipantId(),
+                record.getDocumentTypeId(),
+                record.getProcessId(),
+                ublXml,
+                senderCerts.cert,
+                senderCerts.key,
+                receiverCert,
+                endpointUrl
+        );
+
         As4DeliveryResult result = as4Client.send(message);
         if (result.success()) {
             record.markDelivered(result.rawMdnResponse(), result.mdnMessageId());
@@ -283,44 +343,29 @@ public class PeppolDeliveryService {
         }
     }
 
-    /**
-     * Constructs an {@link As4Message} from the delivery record, receiver AP, and UBL payload.
-     * The receiver's X.509 certificate is parsed from the AP's PEM {@code certificate} field
-     * when present. Sender cert/key are not yet provisioned — a TODO is left for when
-     * the sender AP certificate management is implemented.
-     */
-    private As4Message buildAs4Message(PeppolDeliveryRecord record, AccessPoint receiverAp, String ublXml) {
-        X509Certificate receiverCert = null;
-        if (receiverAp.getCertificate() != null && !receiverAp.getCertificate().isBlank()) {
-            try {
-                CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                byte[] pemBytes = receiverAp.getCertificate()
-                        .replaceAll("-----BEGIN CERTIFICATE-----", "")
-                        .replaceAll("-----END CERTIFICATE-----", "")
-                        .replaceAll("\\s+", "")
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                byte[] derBytes = java.util.Base64.getDecoder().decode(pemBytes);
-                receiverCert = (X509Certificate) cf.generateCertificate(
-                        new ByteArrayInputStream(derBytes));
-            } catch (Exception e) {
-                log.warn("Failed to parse receiver AP certificate for {}: {}",
-                        receiverAp.getParticipantId(), e.getMessage());
-            }
-        }
+    private LoadedSenderCerts loadSenderCredentials(UUID organizationId) {
+        return credentialStore.loadActive(organizationId)
+                .map(m -> new LoadedSenderCerts(m.certificate(), m.privateKey()))
+                .orElse(null);
+    }
 
-        return new As4Message(
-                record.getSenderParticipantId(),
-                record.getReceiverParticipantId(),
-                record.getDocumentTypeId(),
-                record.getProcessId(),
-                ublXml,
-                // TODO: load sender X.509 cert and private key from key store
-                // when sender AP certificate management is implemented
-                null,
-                null,
-                receiverCert,
-                receiverAp.getEndpointUrl()
-        );
+    private record LoadedSenderCerts(X509Certificate cert, java.security.PrivateKey key) {}
+
+    private X509Certificate parseCertificate(String pem) {
+        if (pem == null || pem.isBlank()) return null;
+        try {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            byte[] pemBytes = pem
+                    .replaceAll("-----BEGIN CERTIFICATE-----", "")
+                    .replaceAll("-----END CERTIFICATE-----", "")
+                    .replaceAll("\\s+", "")
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] derBytes = java.util.Base64.getDecoder().decode(pemBytes);
+            return (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(derBytes));
+        } catch (Exception e) {
+            log.warn("Failed to parse PEM certificate: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

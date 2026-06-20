@@ -4,10 +4,15 @@ import com.esolutions.massmailer.billing.service.BillingService;
 import com.esolutions.massmailer.model.MailCampaign;
 import com.esolutions.massmailer.model.MailRecipient;
 import com.esolutions.massmailer.model.MailRecipient.RecipientStatus;
+import com.esolutions.massmailer.dto.PageResponse;
 import com.esolutions.massmailer.organization.service.OrganizationService;
 import com.esolutions.massmailer.repository.CampaignRepository;
 import com.esolutions.massmailer.repository.RecipientRepository;
 import com.esolutions.massmailer.security.OrgPrincipal;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -237,35 +242,48 @@ public class OrgInvoiceDashboardController {
                     """)
     @GetMapping(value = "/invoices", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly = true)
-    public ResponseEntity<List<InvoiceRecord>> listInvoices(
+    public ResponseEntity<PageResponse<InvoiceRecord>> listInvoices(
             @AuthenticationPrincipal OrgPrincipal principal,
             @Parameter(description = "Filter by status: PENDING, SENT, FAILED, SKIPPED")
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @Parameter(description = "Page number (0-based)")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Number of items per page")
+            @RequestParam(defaultValue = "20") int size) {
 
         UUID orgId = principal.orgId();
-        List<MailRecipient> recipients;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "sentAt"));
+        Page<MailRecipient> recipientPage;
 
         if (status != null && !status.isBlank()) {
             try {
                 var s = RecipientStatus.valueOf(status.toUpperCase());
-                recipients = recipientRepo.findByOrganizationIdAndStatus(orgId, s);
+                recipientPage = recipientRepo.findByOrganizationIdAndStatus(orgId, s, pageable);
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().build();
             }
         } else {
-            recipients = recipientRepo.findByOrganizationId(orgId);
+            recipientPage = recipientRepo.findByOrganizationId(orgId, pageable);
         }
 
         // Batch-load campaigns to avoid N+1
         var campaignCache = new HashMap<UUID, MailCampaign>();
-        var invoices = recipients.stream().map(r -> {
+        var invoices = recipientPage.getContent().stream().map(r -> {
             var campaign = campaignCache.computeIfAbsent(
                     r.getCampaign().getId(), cid ->
                             campaignRepo.findById(cid).orElse(r.getCampaign()));
             return toInvoiceRecord(r, campaign);
         }).toList();
 
-        return ResponseEntity.ok(invoices);
+        var pageResponse = new PageResponse<InvoiceRecord>(
+                invoices,
+                recipientPage.getNumber(),
+                recipientPage.getSize(),
+                recipientPage.getTotalElements(),
+                recipientPage.getTotalPages()
+        );
+
+        return ResponseEntity.ok(pageResponse);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -288,6 +306,43 @@ public class OrgInvoiceDashboardController {
 
         if (records.isEmpty()) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(records);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  GET /api/v1/my/customers/{customerId}/invoices
+    // ═══════════════════════════════════════════════════════════════
+
+    @Operation(summary = "List invoices for a specific customer",
+            description = "Returns all invoice delivery records linked to the given customer.")
+    @GetMapping(value = "/customers/{customerId}/invoices", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional(readOnly = true)
+    public ResponseEntity<PageResponse<InvoiceRecord>> listCustomerInvoices(
+            @AuthenticationPrincipal OrgPrincipal principal,
+            @PathVariable UUID customerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        UUID orgId = principal.orgId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "sentAt"));
+        var recipientPage = recipientRepo.findByOrganizationIdAndCustomerId(orgId, customerId, pageable);
+
+        var campaignCache = new HashMap<UUID, MailCampaign>();
+        var invoices = recipientPage.getContent().stream().map(r -> {
+            var campaign = campaignCache.computeIfAbsent(
+                    r.getCampaign().getId(), cid ->
+                            campaignRepo.findById(cid).orElse(r.getCampaign()));
+            return toInvoiceRecord(r, campaign);
+        }).toList();
+
+        var pageResponse = new PageResponse<InvoiceRecord>(
+                invoices,
+                recipientPage.getNumber(),
+                recipientPage.getSize(),
+                recipientPage.getTotalElements(),
+                recipientPage.getTotalPages()
+        );
+
+        return ResponseEntity.ok(pageResponse);
     }
 
     // ═══════════════════════════════════════════════════════════════

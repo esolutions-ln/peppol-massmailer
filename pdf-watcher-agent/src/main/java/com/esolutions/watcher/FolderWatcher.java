@@ -74,7 +74,7 @@ public class FolderWatcher {
         }
     }
 
-    private void processPdf(Path pdfPath) {
+    void processPdf(Path pdfPath) {
         String base = pdfPath.getFileName().toString().replace(".pdf", "");
 
         if (dispatchedInSession.contains(base)) {
