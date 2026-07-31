@@ -105,7 +105,7 @@ public class SmtpSendService {
             rateLimiter.acquire();
             try {
                 if (brevoEnabled()) {
-                    return sendViaBrevo(from, toEmail, toName, subject, htmlBody, invoiceNumber, attachment);
+                    return sendViaBrevo(from, toEmail, toName, subject, htmlBody, invoiceNumber, attachment, customerAccountNumber);
                 }
                 return sendViaJavaMail(from, toEmail, toName, subject, htmlBody, invoiceNumber, attachment);
             } finally {
