@@ -4,8 +4,11 @@ WORKDIR /app
 
 RUN addgroup -S mailer && adduser -S mailer -G mailer
 
-COPY google-oauth-credentials.json /etc/mailer/google-oauth-credentials.json
-RUN chmod 600 /etc/mailer/google-oauth-credentials.json
+# Google OAuth2 credentials are NOT baked into the image — a secret in an image
+# layer leaks to anyone who can pull it. They are only read when
+# massmailer.gmail-oauth2.enabled=true (hardcoded false today). To enable, mount
+# the file at runtime and point GOOGLE_OAUTH2_CREDENTIALS_PATH at it:
+#   -v ./google-oauth-credentials.json:/etc/mailer/google-oauth-credentials.json:ro
 
 USER mailer
 

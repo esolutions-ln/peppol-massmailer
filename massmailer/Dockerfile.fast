@@ -9,8 +9,8 @@ WORKDIR /app
 
 RUN addgroup -S mailer && adduser -S mailer -G mailer
 
-COPY google-oauth-credentials.json /etc/mailer/google-oauth-credentials.json
-RUN chmod 600 /etc/mailer/google-oauth-credentials.json
+# Google OAuth2 credentials are NOT baked into the image — see Dockerfile for
+# the runtime-mount approach. Only read when gmail-oauth2.enabled=true.
 
 USER mailer
 
