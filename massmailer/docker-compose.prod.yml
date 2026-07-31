@@ -1,3 +1,8 @@
+# Pin the Compose project name — see docker-compose.yml for why. Without it the
+# project would be named after the directory ("massmailer") instead of the
+# established "mass-mailer", orphaning existing volumes and containers.
+name: mass-mailer
+
 services:
   mass-mailer:
     build: .
