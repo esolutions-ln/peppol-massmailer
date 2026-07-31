@@ -1,3 +1,10 @@
+# Pin the Compose project name. Without this it defaults to the directory name,
+# which changed from "mass-mailer" to "massmailer" when the app moved into
+# massmailer/ — and a renamed project means a NEW, EMPTY postgres_data volume,
+# stranding the existing production database in the orphaned
+# mass-mailer_postgres_data volume. Keep this value as-is.
+name: mass-mailer
+
 services:
   postgres:
     image: postgres:16-alpine
