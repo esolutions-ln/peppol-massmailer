@@ -70,9 +70,10 @@ services:
       PDF_WATCHER_ORG_ID: ${PDF_WATCHER_ORG_ID:-}
     volumes:
       # PDF inbox for the in-process watcher (writable — files are moved to processed/failed)
-      - ./inbox:/var/lib/invoicedirect/watcher/inbox
+      # inbox/ lives at the repo root, one level above this compose file
+      - ../inbox:/var/lib/invoicedirect/watcher/inbox
       # Separate PDF inbox for ERP API uploads (read-only path validation base)
-      - ./inbox:/var/lib/invoicedirect/invoices:ro
+      - ../inbox:/var/lib/invoicedirect/invoices:ro
       - ./target/mass-mailer-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9199/actuator/health || exit 1"]

@@ -351,7 +351,8 @@ The stack runs:
 - PostgreSQL on port `5432`
 
 ```bash
-# Build and start
+# Build and start (the application lives in massmailer/)
+cd massmailer
 ./deploy.sh
 
 # Or manually:

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Run from this script's directory (massmailer/) so the relative paths below
+# — .env, frontend/, target/ — resolve regardless of the caller's cwd.
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # InvoiceDirect Mass Mailer — Native (bare-metal) Deployment Script
 # Backend:  systemd service on port 9199
