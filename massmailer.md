@@ -109,7 +109,10 @@ com.esolutions.massmailer/
 
 ### Development (H2 in-memory)
 
+The application lives in `massmailer/` — run all build and deploy commands from there.
+
 ```bash
+cd massmailer
 mvn spring-boot:run -Dspring-boot.run.jvmArguments="--enable-preview"
 # API at http://localhost:9199
 # Swagger at http://localhost:9199/swagger-ui.html (if SWAGGER_ENABLED=true)
@@ -118,6 +121,7 @@ mvn spring-boot:run -Dspring-boot.run.jvmArguments="--enable-preview"
 ### Full-stack with PostgreSQL
 
 ```bash
+cd massmailer
 docker compose up --build
 # Backend: http://localhost:9199
 # Frontend: http://localhost:8199
@@ -610,6 +614,8 @@ Two authentication modes, checked by `ApiKeyAuthFilter`:
 ### Docker Deployment
 
 ```bash
+cd massmailer
+
 # Development (PostgreSQL container)
 docker compose up --build
 

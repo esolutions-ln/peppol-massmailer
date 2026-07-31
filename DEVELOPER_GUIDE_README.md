@@ -140,8 +140,8 @@ This comprehensive developer guide documents the PEPPOL e-delivery platform impl
 
 - `massmailer.md` - Main platform documentation
 - `peppol/peppol-e-delivery-documentation.md` - Technical PEPPOL docs
-- `deploy.sh` - Deployment script
-- `docker-compose.yml` - Container orchestration
+- `massmailer/deploy.sh` - Deployment script
+- `massmailer/docker-compose.yml` - Container orchestration
 
 ## Contact & Support
 
