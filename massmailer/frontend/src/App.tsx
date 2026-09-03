@@ -15,6 +15,7 @@ import RateProfilesPage from './pages/admin/RateProfilesPage'
 import AdminCampaignsPage from './pages/admin/AdminCampaignsPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import PeppolPage from './pages/admin/PeppolPage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
 import PeppolInvitePage from './pages/PeppolInvitePage'
 import SendTestPage from './pages/SendTestPage'
 import ApiDocsPage from './pages/ApiDocsPage'
@@ -50,6 +51,7 @@ function AppRoutes() {
       <Route path="/admin/billing" element={<ProtectedRoute adminOnly><BillingPage /></ProtectedRoute>} />
       <Route path="/admin/campaigns" element={<ProtectedRoute adminOnly><AdminCampaignsPage /></ProtectedRoute>} />
       <Route path="/admin/peppol" element={<ProtectedRoute adminOnly><PeppolPage /></ProtectedRoute>} />
+      <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsersPage /></ProtectedRoute>} />
 
       <Route path="/billing" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to={session ? '/dashboard' : '/login'} replace />} />

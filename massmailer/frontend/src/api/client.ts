@@ -7,7 +7,7 @@ import type {
   ParticipantLink, CreateParticipantLinkRequest,
   PeppolDeliveryStats, PeppolInvitation, TokenValidationResponse,
   PeppolCertificate, PeppolCertUploadRequest, PeppolActiveCertResponse,
-  OrgMember, OrgLoginResponse, OrgMemberRole, DeliveryMode
+  OrgMember, OrgLoginResponse, OrgMemberRole, DeliveryMode, AdminUser
 } from '../types'
 
 const BASE = '/api/v1'
@@ -87,6 +87,21 @@ export const resetOrgMemberPassword = (
 
 export const deleteOrgMember = (memberId: string): Promise<AxiosResponse<void>> =>
   axios.delete(`${BASE}/my/members/${memberId}`)
+
+// ─── Platform Admin Users (managed by any platform admin) ─────────────────────
+export const listAdminUsers = (): Promise<AxiosResponse<AdminUser[]>> =>
+  axios.get(`${BASE}/admin/users`)
+
+export const createAdminUser = (data: {
+  username: string; password: string; displayName?: string
+}): Promise<AxiosResponse<AdminUser>> =>
+  axios.post(`${BASE}/admin/users`, data)
+
+export const deactivateAdminUser = (id: string): Promise<AxiosResponse<void>> =>
+  axios.patch(`${BASE}/admin/users/${id}/deactivate`)
+
+export const reactivateAdminUser = (id: string): Promise<AxiosResponse<void>> =>
+  axios.patch(`${BASE}/admin/users/${id}/reactivate`)
 
 // ─── Organizations ────────────────────────────────────────────────────────────
 export const registerOrg = (data: Partial<Organization> & { user: OrgUser }): Promise<AxiosResponse<Organization>> =>
