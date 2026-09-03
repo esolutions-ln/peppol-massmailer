@@ -62,6 +62,7 @@ public class SecurityConfig {
                 .requestMatchers("/peppol/eregistry/**").hasAnyRole("ORG", "ADMIN")
                 .requestMatchers("/peppol/**").hasAnyRole("ORG", "ADMIN")
                 .requestMatchers("/api/v1/invitations/**").permitAll()
+                .requestMatchers("/api/v1/admin-invitations/**").permitAll()
 
                 // ── Org-member management — requires full ORG role (admin members or API key) ──
                 .requestMatchers("/api/v1/my/members/**").hasRole("ORG")

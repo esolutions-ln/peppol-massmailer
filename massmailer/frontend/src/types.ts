@@ -22,6 +22,23 @@ export interface AdminUser {
   createdAt: string
 }
 
+export interface AdminInvitation {
+  id: string
+  email: string
+  displayName?: string
+  invitedBy: string
+  status: InvitationStatus
+  createdAt: string
+  expiresAt: string
+  completedAt?: string
+}
+
+export interface AdminInvitationTokenValidation {
+  email: string
+  displayName?: string
+  invitedBy: string
+}
+
 export interface OrgMember {
   id: string
   organizationId: string

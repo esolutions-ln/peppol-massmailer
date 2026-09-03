@@ -7,7 +7,8 @@ import type {
   ParticipantLink, CreateParticipantLinkRequest,
   PeppolDeliveryStats, PeppolInvitation, TokenValidationResponse,
   PeppolCertificate, PeppolCertUploadRequest, PeppolActiveCertResponse,
-  OrgMember, OrgLoginResponse, OrgMemberRole, DeliveryMode, AdminUser
+  OrgMember, OrgLoginResponse, OrgMemberRole, DeliveryMode, AdminUser,
+  AdminInvitation, AdminInvitationTokenValidation
 } from '../types'
 
 const BASE = '/api/v1'
@@ -102,6 +103,30 @@ export const deactivateAdminUser = (id: string): Promise<AxiosResponse<void>> =>
 
 export const reactivateAdminUser = (id: string): Promise<AxiosResponse<void>> =>
   axios.patch(`${BASE}/admin/users/${id}/reactivate`)
+
+// ─── Platform Admin Invitations ────────────────────────────────────────────────
+export const sendAdminInvitation = (data: {
+  email: string; displayName?: string
+}): Promise<AxiosResponse<AdminInvitation>> =>
+  axios.post(`${BASE}/admin/invitations`, data)
+
+export const listAdminInvitations = (): Promise<AxiosResponse<AdminInvitation[]>> =>
+  axios.get(`${BASE}/admin/invitations`)
+
+export const cancelAdminInvitation = (id: string): Promise<AxiosResponse<void>> =>
+  axios.delete(`${BASE}/admin/invitations/${id}`)
+
+export const validateAdminInvitationToken = (
+  token: string
+): Promise<AdminInvitationTokenValidation> =>
+  axios.get<AdminInvitationTokenValidation>(`${BASE}/admin-invitations/${token}`)
+    .then(r => r.data)
+
+export const completeAdminInvitation = (
+  token: string, data: { username: string; password: string }
+): Promise<{ username: string }> =>
+  axios.post<{ username: string }>(`${BASE}/admin-invitations/${token}/complete`, data)
+    .then(r => r.data)
 
 // ─── Organizations ────────────────────────────────────────────────────────────
 export const registerOrg = (data: Partial<Organization> & { user: OrgUser }): Promise<AxiosResponse<Organization>> =>
