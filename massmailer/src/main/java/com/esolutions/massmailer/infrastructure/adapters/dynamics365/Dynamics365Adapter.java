@@ -154,10 +154,13 @@ public class Dynamics365Adapter implements ErpInvoicePort {
 
     @Override
     public boolean healthCheck(String tenantId) {
-        // TODO: Call D365 company info endpoint to verify credentials
-        //   GET /data/Companies
-        log.debug("Dynamics 365 health check for tenant {}", tenantId);
-        return config.baseUrl() != null && !config.baseUrl().isBlank();
+        // Always false: fetchInvoices() still returns placeholder data rather than
+        // calling the real D365 OData API (see TODO above) — the export-directory PDF
+        // read works on its own, but invoice data cannot be fetched yet. Reporting
+        // "healthy" here would mislead an operator into onboarding a customer onto
+        // an integration that cannot actually fetch their invoices.
+        log.warn("Dynamics 365 health check requested for tenant {} — adapter is not yet implemented", tenantId);
+        return false;
     }
 
     // ── ACL: D365 Model → Canonical Model ──
