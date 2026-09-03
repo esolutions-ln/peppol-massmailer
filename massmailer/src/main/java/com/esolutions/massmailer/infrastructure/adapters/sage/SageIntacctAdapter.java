@@ -129,9 +129,14 @@ public class SageIntacctAdapter implements ErpInvoicePort {
 
     @Override
     public boolean healthCheck(String tenantId) {
-        // TODO: Call Sage API <getAPISession> to verify credentials
-        log.debug("Sage Intacct health check for company {}", tenantId);
-        return config.baseUrl() != null && !config.baseUrl().isBlank();
+        // Always false: fetchInvoices() still returns placeholder data rather than
+        // calling the real Sage Intacct XML API (see TODO above), so this adapter
+        // cannot serve a real dispatch yet regardless of whether credentials are
+        // configured. Reporting "healthy" here would mislead an operator into
+        // onboarding a customer onto an integration that cannot actually fetch
+        // their invoices.
+        log.warn("Sage Intacct health check requested for company {} — adapter is not yet implemented", tenantId);
+        return false;
     }
 
     // ── ACL: Sage Model → Canonical Model ──

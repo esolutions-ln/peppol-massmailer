@@ -135,10 +135,13 @@ public class QuickBooksOnlineAdapter implements ErpInvoicePort {
 
     @Override
     public boolean healthCheck(String tenantId) {
-        // TODO: Call QB company info endpoint to verify credentials
-        //   GET /v3/company/{realmId}/companyinfo/{realmId}
-        log.debug("QuickBooks health check for realm {}", tenantId);
-        return config.clientId() != null && !config.clientId().isBlank();
+        // Always false: fetchInvoices() still returns placeholder data rather than
+        // calling the real QB API (see TODO above), so this adapter cannot serve a
+        // real dispatch yet regardless of whether credentials are configured.
+        // Reporting "healthy" here would mislead an operator into onboarding a
+        // customer onto an integration that cannot actually fetch their invoices.
+        log.warn("QuickBooks health check requested for realm {} — adapter is not yet implemented", tenantId);
+        return false;
     }
 
     // ── ACL: QuickBooks Model → Canonical Model ──
