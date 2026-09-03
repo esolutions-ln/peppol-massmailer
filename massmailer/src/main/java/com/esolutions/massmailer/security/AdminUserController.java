@@ -39,7 +39,7 @@ public class AdminUserController {
     @Operation(summary = "Create a new admin user — password must be at least 8 characters")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<AdminUserDto> createUser(@RequestBody CreateAdminUserRequest req) {
-        AdminUserDto created = adminUserService.createUser(req.username(), req.password(), req.displayName());
+        AdminUserDto created = adminUserService.createUser(req.username(), req.password(), req.displayName(), req.email());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 

@@ -8,7 +8,7 @@ import type {
   PeppolDeliveryStats, PeppolInvitation, TokenValidationResponse,
   PeppolCertificate, PeppolCertUploadRequest, PeppolActiveCertResponse,
   OrgMember, OrgLoginResponse, OrgMemberRole, DeliveryMode, AdminUser,
-  AdminInvitation, AdminInvitationTokenValidation
+  AdminInvitation, AdminInvitationTokenValidation, AdminPasswordResetTokenValidation
 } from '../types'
 
 const BASE = '/api/v1'
@@ -94,7 +94,7 @@ export const listAdminUsers = (): Promise<AxiosResponse<AdminUser[]>> =>
   axios.get(`${BASE}/admin/users`)
 
 export const createAdminUser = (data: {
-  username: string; password: string; displayName?: string
+  username: string; password: string; displayName?: string; email?: string
 }): Promise<AxiosResponse<AdminUser>> =>
   axios.post(`${BASE}/admin/users`, data)
 
@@ -127,6 +127,35 @@ export const completeAdminInvitation = (
 ): Promise<{ username: string }> =>
   axios.post<{ username: string }>(`${BASE}/admin-invitations/${token}/complete`, data)
     .then(r => r.data)
+
+// ─── Admin Self-Service Profile & Password ─────────────────────────────────────
+export const getAdminProfile = (): Promise<AxiosResponse<AdminUser>> =>
+  axios.get(`${BASE}/admin/me`)
+
+export const updateAdminProfile = (data: {
+  displayName?: string; email?: string
+}): Promise<AxiosResponse<AdminUser>> =>
+  axios.put(`${BASE}/admin/me`, data)
+
+export const changeAdminPassword = (data: {
+  currentPassword: string; newPassword: string
+}): Promise<AxiosResponse<void>> =>
+  axios.put(`${BASE}/admin/me/password`, data)
+
+// ─── Admin Forgot Password ──────────────────────────────────────────────────────
+export const requestAdminPasswordReset = (username: string): Promise<AxiosResponse<void>> =>
+  axios.post(`${BASE}/admin-password-reset`, { username })
+
+export const validateAdminPasswordResetToken = (
+  token: string
+): Promise<AdminPasswordResetTokenValidation> =>
+  axios.get<AdminPasswordResetTokenValidation>(`${BASE}/admin-password-reset/${token}`)
+    .then(r => r.data)
+
+export const completeAdminPasswordReset = (
+  token: string, newPassword: string
+): Promise<AxiosResponse<void>> =>
+  axios.post(`${BASE}/admin-password-reset/${token}/complete`, { newPassword })
 
 // ─── Organizations ────────────────────────────────────────────────────────────
 export const registerOrg = (data: Partial<Organization> & { user: OrgUser }): Promise<AxiosResponse<Organization>> =>

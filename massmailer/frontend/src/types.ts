@@ -16,10 +16,15 @@ export interface Session {
 export interface AdminUser {
   id: string
   username: string
+  email?: string
   displayName?: string
   role: string
   active: boolean
   createdAt: string
+}
+
+export interface AdminPasswordResetTokenValidation {
+  username: string
 }
 
 export interface AdminInvitation {
