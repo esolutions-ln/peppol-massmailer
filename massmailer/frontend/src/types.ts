@@ -13,6 +13,15 @@ export interface Session {
   memberRole?: OrgMemberRole
 }
 
+export interface AdminUser {
+  id: string
+  username: string
+  displayName?: string
+  role: string
+  active: boolean
+  createdAt: string
+}
+
 export interface OrgMember {
   id: string
   organizationId: string
