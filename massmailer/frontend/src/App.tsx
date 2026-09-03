@@ -17,6 +17,7 @@ import AdminLoginPage from './pages/admin/AdminLoginPage'
 import PeppolPage from './pages/admin/PeppolPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import PeppolInvitePage from './pages/PeppolInvitePage'
+import AdminInvitePage from './pages/admin/AdminInvitePage'
 import SendTestPage from './pages/SendTestPage'
 import ApiDocsPage from './pages/ApiDocsPage'
 import { ReactNode } from 'react'
@@ -33,6 +34,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/invite/peppol/:token" element={<PeppolInvitePage />} />
+      <Route path="/invite/admin/:token" element={<AdminInvitePage />} />
       <Route path="/login" element={session ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={session ? <Navigate to="/dashboard" /> : <RegisterPage />} />
       <Route path="/admin/login" element={session ? <Navigate to="/dashboard" /> : <AdminLoginPage />} />
