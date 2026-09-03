@@ -31,6 +31,9 @@ public class AdminUser {
     @Column(nullable = false, unique = true)
     private String username;
 
+    /** Optional — required for self-service "forgot password" email links to work. */
+    private String email;
+
     @Column(nullable = false)
     private String passwordHash;
 

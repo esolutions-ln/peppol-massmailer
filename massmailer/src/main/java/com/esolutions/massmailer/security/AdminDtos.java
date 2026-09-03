@@ -11,10 +11,24 @@ public class AdminDtos {
 
     public record AdminLoginResponse(String token, String name) {}
 
-    public record CreateAdminUserRequest(String username, String password, String displayName) {}
+    public record CreateAdminUserRequest(String username, String password, String displayName, String email) {}
 
-    public record AdminUserDto(UUID id, String username, String displayName, String role,
+    public record AdminUserDto(UUID id, String username, String email, String displayName, String role,
                                boolean active, Instant createdAt) {}
+
+    // ── Self-service profile / password ──────────────────────────────────────
+
+    public record UpdateAdminProfileRequest(String displayName, String email) {}
+
+    public record ChangeAdminPasswordRequest(String currentPassword, String newPassword) {}
+
+    // ── Forgot password ───────────────────────────────────────────────────────
+
+    public record RequestAdminPasswordResetRequest(String username) {}
+
+    public record AdminPasswordResetTokenValidationResponse(String username) {}
+
+    public record CompleteAdminPasswordResetRequest(String newPassword) {}
 
     // ── Admin invitations ──────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, Building2, Users, Mail, CreditCard,
-  LogOut, Layers, Network, Send, BookOpen, FileText, Pencil, UserCog, ShieldCheck
+  LogOut, Layers, Network, Send, BookOpen, FileText, Pencil, UserCog, ShieldCheck, CircleUser
 } from 'lucide-react'
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
@@ -40,6 +40,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <NavItem to="/admin/campaigns" icon={Mail} label="All Campaigns" />
               <NavItem to="/admin/peppol" icon={Network} label="PEPPOL Registry" />
               <NavItem to="/admin/users" icon={ShieldCheck} label="Platform Admins" />
+              <NavItem to="/admin/profile" icon={CircleUser} label="My Profile" />
             </>
           )}
 

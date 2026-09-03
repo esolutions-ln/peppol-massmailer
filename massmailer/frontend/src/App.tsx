@@ -18,6 +18,9 @@ import PeppolPage from './pages/admin/PeppolPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import PeppolInvitePage from './pages/PeppolInvitePage'
 import AdminInvitePage from './pages/admin/AdminInvitePage'
+import AdminProfilePage from './pages/admin/AdminProfilePage'
+import AdminForgotPasswordPage from './pages/admin/AdminForgotPasswordPage'
+import AdminResetPasswordPage from './pages/admin/AdminResetPasswordPage'
 import SendTestPage from './pages/SendTestPage'
 import ApiDocsPage from './pages/ApiDocsPage'
 import { ReactNode } from 'react'
@@ -38,6 +41,8 @@ function AppRoutes() {
       <Route path="/login" element={session ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={session ? <Navigate to="/dashboard" /> : <RegisterPage />} />
       <Route path="/admin/login" element={session ? <Navigate to="/dashboard" /> : <AdminLoginPage />} />
+      <Route path="/admin/forgot-password" element={session ? <Navigate to="/dashboard" /> : <AdminForgotPasswordPage />} />
+      <Route path="/admin/reset-password/:token" element={session ? <Navigate to="/dashboard" /> : <AdminResetPasswordPage />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
@@ -54,6 +59,7 @@ function AppRoutes() {
       <Route path="/admin/campaigns" element={<ProtectedRoute adminOnly><AdminCampaignsPage /></ProtectedRoute>} />
       <Route path="/admin/peppol" element={<ProtectedRoute adminOnly><PeppolPage /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsersPage /></ProtectedRoute>} />
+      <Route path="/admin/profile" element={<ProtectedRoute adminOnly><AdminProfilePage /></ProtectedRoute>} />
 
       <Route path="/billing" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to={session ? '/dashboard' : '/login'} replace />} />

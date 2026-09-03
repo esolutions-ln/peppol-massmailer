@@ -122,7 +122,10 @@ public class AdminInvitationService {
     public AdminUserDto completeRegistration(String token, String username, String password) {
         AdminInvitation invitation = findValidPending(token);
 
-        AdminUserDto created = adminUserService.createUser(username, password, invitation.getDisplayName());
+        // Auto-populate email from the invitation so invited admins get self-service
+        // "forgot password" working by default, without needing to fill it in later.
+        AdminUserDto created = adminUserService.createUser(
+                username, password, invitation.getDisplayName(), invitation.getEmail());
 
         invitation.setStatus(InvitationStatus.COMPLETED);
         invitation.setCompletedAt(Instant.now());

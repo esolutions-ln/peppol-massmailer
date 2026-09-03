@@ -60,7 +60,10 @@ export default function AdminLoginPage() {
             <input autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" required />
           </div>
           <div className="form-group">
-            <label>Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <label>Password</label>
+              <Link to="/admin/forgot-password" style={{ fontSize: 12, color: '#0ea5e9', textDecoration: 'none' }}>Forgot password?</Link>
+            </div>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}

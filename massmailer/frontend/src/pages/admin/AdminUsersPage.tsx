@@ -26,7 +26,7 @@ export default function AdminUsersPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [mode, setMode] = useState<AddMode>('invite')
   const [inviteForm, setInviteForm] = useState({ email: '', displayName: '' })
-  const [directForm, setDirectForm] = useState({ username: '', password: '', displayName: '' })
+  const [directForm, setDirectForm] = useState({ username: '', password: '', displayName: '', email: '' })
   const [submitting, setSubmitting] = useState(false)
   const [inviteSentTo, setInviteSentTo] = useState('')
 
@@ -65,7 +65,7 @@ export default function AdminUsersPage() {
     setSubmitting(true); setError('')
     try {
       await createAdminUser(directForm)
-      setDirectForm({ username: '', password: '', displayName: '' })
+      setDirectForm({ username: '', password: '', displayName: '', email: '' })
       setShowAdd(false)
       await reload()
     } catch (e: any) {
@@ -191,6 +191,13 @@ export default function AdminUsersPage() {
                     <input type="text" required minLength={8} value={directForm.password}
                       onChange={e => setDirectForm({ ...directForm, password: e.target.value })}
                       placeholder="Share this with them securely" />
+                  </div>
+                  <div className="form-group">
+                    <label>Email (optional)</label>
+                    <input type="email" value={directForm.email}
+                      onChange={e => setDirectForm({ ...directForm, email: e.target.value })}
+                      placeholder="jane.moyo@example.com" />
+                    <span style={{ fontSize: 12, color: '#94a3b8' }}>Needed for them to self-service "forgot password" later.</span>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">

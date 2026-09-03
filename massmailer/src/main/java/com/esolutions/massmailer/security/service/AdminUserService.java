@@ -29,7 +29,7 @@ public class AdminUserService {
     }
 
     @Transactional
-    public AdminUserDto createUser(String username, String password, String displayName) {
+    public AdminUserDto createUser(String username, String password, String displayName, String email) {
         if (password == null || password.length() < 8) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Password must be at least 8 characters");
@@ -42,9 +42,47 @@ public class AdminUserService {
                 .username(username)
                 .passwordHash(passwordEncoder.encode(password))
                 .displayName(displayName)
+                .email(email != null && !email.isBlank() ? email.trim().toLowerCase() : null)
                 .build();
         AdminUser saved = adminUserRepository.save(user);
         return toDto(saved);
+    }
+
+    /** Self-service profile update — displayName and/or email. Username cannot be changed. */
+    @Transactional
+    public AdminUserDto updateProfile(String username, String displayName, String email) {
+        AdminUser user = adminUserRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Admin user not found"));
+        if (displayName != null && !displayName.isBlank()) {
+            user.setDisplayName(displayName.trim());
+        }
+        user.setEmail(email != null && !email.isBlank() ? email.trim().toLowerCase() : null);
+        return toDto(adminUserRepository.save(user));
+    }
+
+    /** Self-service password change — requires the current password. */
+    @Transactional
+    public void changePassword(String username, String currentPassword, String newPassword) {
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "New password must be at least 8 characters");
+        }
+        AdminUser user = adminUserRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Admin user not found"));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        adminUserRepository.save(user);
+        // Force re-login everywhere, including the current session — matches
+        // OrgMemberService.resetPassword's convention for the org-member equivalent.
+        tokenRepo.deleteByAdminUser(user);
+    }
+
+    public AdminUserDto getByUsername(String username) {
+        AdminUser user = adminUserRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Admin user not found"));
+        return toDto(user);
     }
 
     public List<AdminUserDto> listUsers() {
@@ -80,6 +118,7 @@ public class AdminUserService {
         return new AdminUserDto(
                 user.getId(),
                 user.getUsername(),
+                user.getEmail(),
                 user.getDisplayName(),
                 user.getRole(),
                 user.isActive(),
