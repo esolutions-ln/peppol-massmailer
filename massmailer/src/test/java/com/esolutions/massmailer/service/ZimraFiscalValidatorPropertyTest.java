@@ -114,26 +114,52 @@ class ZimraFiscalValidatorPropertyTest {
     }
 
     /**
-     * P7d — Content missing Rule 3 (no fiscal device field) must be invalid with errors.
+     * P7d — Fiscal device fields (Device ID / Fiscal Day / etc.) are informational
+     * only. Content with Rule 1 + Rule 2 but no such field must still be valid,
+     * since not every legitimate fiscal receipt format includes them.
      *
      * **Validates: Requirements 6.1, 6.3**
      */
     @Property
-    void contentMissingRule3IsInvalid(
+    void contentMissingFiscalDeviceFieldsIsStillValid(
             @ForAll("paddingStrings") String padding,
             @ForAll("rule2Markers")   String rule2Marker
     ) {
-        // Include Rule 1 and Rule 2 but omit any Rule 3 marker
+        // Include Rule 1 and Rule 2 but omit any fiscal device field
         String content = FDMS_DOMAIN + padding + rule2Marker;
 
         ValidationResult result = validate(content);
 
         assertThat(result.valid())
-                .as("Content missing fiscal device fields should be invalid")
-                .isFalse();
+                .as("Content with FDMS domain + verification code should be valid even without fiscal device fields")
+                .isTrue();
         assertThat(result.errors())
-                .as("Invalid result must have non-empty errors")
-                .isNotEmpty();
+                .as("Valid result must have no errors")
+                .isEmpty();
+    }
+
+    /**
+     * P7f — The FDMS domain check must also accept environment-prefixed hosts
+     * such as the ZIMRA sandbox "fdmstest.zimra.co.zw", not just the literal
+     * "fdms.zimra.co.zw".
+     *
+     * **Validates: Requirements 6.1, 6.2**
+     */
+    @Property
+    void contentWithFdmsTestDomainIsValid(
+            @ForAll("paddingStrings") String padding,
+            @ForAll("rule2Markers")   String rule2Marker
+    ) {
+        String content = "https://fdmstest.zimra.co.zw/" + padding + rule2Marker;
+
+        ValidationResult result = validate(content);
+
+        assertThat(result.valid())
+                .as("Content with fdmstest.zimra.co.zw sandbox domain should be valid")
+                .isTrue();
+        assertThat(result.errors())
+                .as("Valid result must have no errors")
+                .isEmpty();
     }
 
     /**
