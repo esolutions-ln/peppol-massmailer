@@ -92,6 +92,16 @@
             <version>1.0.0</version>
         </dependency>
 
+        <!-- Apache PDFBox — text extraction for ZIMRA fiscalisation validation.
+             PDF content streams are almost always FlateDecode-compressed, so
+             fiscal markers cannot be found by scanning raw PDF bytes; PDFBox
+             decompresses streams and extracts the rendered text. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.8</version>
+        </dependency>
+
         <!-- Jackson Java Time support -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>

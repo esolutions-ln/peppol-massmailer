@@ -1,9 +1,13 @@
 package com.esolutions.massmailer.service;
 
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,8 +16,8 @@ import java.util.regex.Pattern;
 /**
  * Validates that a PDF invoice has been fiscalised by ZIMRA before dispatch.
  *
- * ZIMRA fiscal devices embed the following markers in the PDF content stream
- * as plain text (visible in the rendered document):
+ * ZIMRA fiscal devices embed the following markers as rendered text (visible
+ * in the document):
  *
  *   - Verification Code  e.g. E960606BFCB6F08A
  *   - Verification URL   https://fdms.zimra.co.zw/...
@@ -22,15 +26,26 @@ import java.util.regex.Pattern;
  *   - Fiscal Invoice Number
  *   - Global Receipt Number
  *
- * Because these are rendered text strings, they appear as literal bytes in
- * the PDF content stream and can be detected without a full PDF parser.
+ * PDF content streams are almost always FlateDecode-compressed, so these
+ * markers cannot be found by scanning the raw PDF bytes — they only exist
+ * once the streams are decompressed and the text extracted. This validator
+ * uses Apache PDFBox to extract text before applying the marker checks. If
+ * the bytes cannot be parsed as a PDF at all (e.g. in unit tests that pass
+ * plain text), it falls back to scanning the raw bytes directly.
  *
  * Validation strategy:
- *   1. Require the ZIMRA verification URL domain (fdms.zimra.co.zw) — this is
- *      the strongest single indicator of a fiscalised document.
- *   2. Require at least one of: a 16-char hex verification code pattern, or
- *      the text "Verification Code" label.
- *   3. Require at least one of: "Device ID", "Fiscal Day", or "Fiscal Invoice".
+ *   1. Require a ZIMRA verification URL domain (*.zimra.co.zw with an "fdms"
+ *      prefix, e.g. fdms.zimra.co.zw or the fdmstest.zimra.co.zw sandbox host)
+ *      — this is the strongest single indicator of a fiscalised document.
+ *   2. Require at least one of: a 16-char hex verification code pattern
+ *      (contiguous or hyphen-grouped, e.g. B993-BD3C-88A8-0A3C), or the text
+ *      "Verification Code" label.
+ *
+ * Device ID / Fiscal Day / Fiscal Invoice Number / Global Receipt Number are
+ * NOT required: some legitimate ZIMRA fiscal receipt formats (e.g. property
+ * management / rental invoices) omit those labels entirely while still
+ * carrying a valid verification code and FDMS URL. Their presence is logged
+ * when available but does not gate dispatch.
  *
  * This is intentionally lenient on formatting — different fiscal devices and
  * PDF generators may lay out the block differently.
@@ -40,12 +55,15 @@ public class ZimraFiscalValidator {
 
     private static final Logger log = LoggerFactory.getLogger(ZimraFiscalValidator.class);
 
-    // ZIMRA FDMS verification URL domain — present in every fiscalised invoice
-    private static final String FDMS_DOMAIN = "fdms.zimra.co.zw";
+    // ZIMRA FDMS verification URL domain, allowing environment prefixes like
+    // "fdms.zimra.co.zw" or "fdmstest.zimra.co.zw"
+    private static final Pattern FDMS_DOMAIN_PATTERN =
+            Pattern.compile("(?i)fdms[a-z0-9-]*\\.zimra\\.co\\.zw");
 
-    // 16-character uppercase hex verification code (e.g. E960606BFCB6F08A)
+    // 16-character uppercase hex verification code, optionally grouped with
+    // hyphens (e.g. E960606BFCB6F08A or B993-BD3C-88A8-0A3C)
     private static final Pattern VERIFICATION_CODE_PATTERN =
-            Pattern.compile("[0-9A-F]{16}");
+            Pattern.compile("[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}|[0-9A-F]{16}");
 
     // Text labels that appear in the fiscal block
     private static final String LABEL_VERIFICATION_CODE = "Verification Code";
@@ -76,19 +94,17 @@ public class ZimraFiscalValidator {
             return ValidationResult.fail(List.of("PDF is empty"));
         }
 
-        // Decode the PDF bytes as Latin-1 to preserve all byte values while
-        // still allowing string searching. PDF content streams are not UTF-8.
-        String content = new String(pdfBytes, StandardCharsets.ISO_8859_1);
+        String content = extractText(pdfBytes, invoiceNumber);
 
         List<String> errors = new ArrayList<>();
 
         // ── Rule 1: ZIMRA FDMS domain must be present ──────────────────────
-        if (!content.contains(FDMS_DOMAIN)) {
+        if (!FDMS_DOMAIN_PATTERN.matcher(content).find()) {
             errors.add("Missing ZIMRA FDMS verification URL (fdms.zimra.co.zw). " +
                     "The invoice does not appear to have been fiscalised.");
         }
 
-        // ── Rule 2: Verification code label or 16-char hex code ────────────
+        // ── Rule 2: Verification code label or hex code ────────────────────
         boolean hasCodeLabel = content.contains(LABEL_VERIFICATION_CODE)
                 || content.contains(LABEL_VERIFICATION_URL);
         boolean hasCodePattern = VERIFICATION_CODE_PATTERN.matcher(content).find();
@@ -98,15 +114,18 @@ public class ZimraFiscalValidator {
                     "Expected 'Verification Code' label or a 16-character hex code (e.g. E960606BFCB6F08A).");
         }
 
-        // ── Rule 3: At least one fiscal device field ────────────────────────
+        // ── Fiscal device fields are informational only ─────────────────────
+        // Not every legitimate fiscal receipt format includes these labels
+        // (e.g. property/rental invoices), so their absence does not fail
+        // validation — only rules 1 and 2 gate dispatch.
         boolean hasFiscalField = content.contains(LABEL_DEVICE_ID)
                 || content.contains(LABEL_FISCAL_DAY)
                 || content.contains(LABEL_FISCAL_INVOICE)
                 || content.contains(LABEL_GLOBAL_RECEIPT);
 
         if (!hasFiscalField) {
-            errors.add("Missing fiscal device fields. " +
-                    "Expected at least one of: 'Device ID', 'Fiscal Day', 'Fiscal Invoice Number', 'Global Receipt Number'.");
+            log.debug("Invoice {} has no fiscal device fields (Device ID/Fiscal Day/etc.) — " +
+                    "not required, proceeding based on verification code + FDMS URL.", invoiceNumber);
         }
 
         if (!errors.isEmpty()) {
@@ -116,5 +135,21 @@ public class ZimraFiscalValidator {
 
         log.debug("Fiscalisation validation passed for invoice {}", invoiceNumber);
         return ValidationResult.ok();
+    }
+
+    /**
+     * Extracts the rendered text of the PDF via PDFBox (decompressing content
+     * streams in the process). Falls back to a raw Latin-1 byte scan if the
+     * bytes cannot be parsed as a PDF, so callers passing plain text (e.g.
+     * unit tests) continue to work unchanged.
+     */
+    private String extractText(byte[] pdfBytes, String invoiceNumber) {
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            return new PDFTextStripper().getText(document);
+        } catch (IOException | RuntimeException e) {
+            log.debug("Could not parse invoice {} as a PDF ({}); falling back to raw byte scan",
+                    invoiceNumber, e.getMessage());
+            return new String(pdfBytes, StandardCharsets.ISO_8859_1);
+        }
     }
 }
