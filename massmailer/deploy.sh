@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Run from this script's directory (massmailer/) so the relative paths below
-# — .env, ../pdf-watcher-common, ../inbox — resolve regardless of the caller's cwd.
+# — .env, pdf-watcher-common, ./inbox — resolve regardless of the caller's cwd.
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +14,24 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 DOMAIN="ap.invoicedirect.biz"
 EMAIL="${CERTBOT_EMAIL:-admin@invoicedirect.biz}"
-COMPOSE="docker compose"
+# docker-compose.prod.yml points mass-mailer at the platform's existing host
+# Postgres (via host.docker.internal) instead of the base file's own
+# dockerized "postgres" service, which would otherwise try to bind the same
+# host port 5432 that the real Postgres is already listening on.
+COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+
+# Resolve mvn explicitly: this script may run over a non-interactive SSH
+# session, where PATH additions from ~/.bashrc / ~/.profile (e.g. an
+# sdkman/manual Maven install under /opt) are not sourced.
+if command -v mvn >/dev/null 2>&1; then
+  MVN="mvn"
+else
+  MVN="$(find /opt -maxdepth 3 -type f -name mvn 2>/dev/null | head -1)"
+  if [ -z "${MVN}" ]; then
+    echo "ERROR: mvn not found on PATH or under /opt."
+    exit 1
+  fi
+fi
 
 echo "================================================"
 echo " InvoiceDirect Deployment"
@@ -38,16 +55,16 @@ fi
 echo ""
 echo "[1/4] Building application..."
 
-if [ ! -d ../pdf-watcher-common ]; then
-  echo "ERROR: ../pdf-watcher-common/ directory not found."
+if [ ! -d pdf-watcher-common ]; then
+  echo "ERROR: pdf-watcher-common/ directory not found."
   exit 1
 fi
 
 echo "  -> Installing pdf-watcher-common module..."
-mvn install -f ../pdf-watcher-common/pom.xml -q
+"${MVN}" install -f pdf-watcher-common/pom.xml -q
 
 echo "  -> Building mass-mailer service..."
-mvn clean package -DskipTests -q
+"${MVN}" clean package -DskipTests -q
 
 # ── Step 2: Build Docker images ─────────────────────────────────────────────
 echo ""
@@ -71,7 +88,7 @@ if [ ! -f "${SSL_CERT_DIR}/fullchain.pem" ]; then
     -subj "/CN=${DOMAIN}" 2>/dev/null
 
   echo "  -> Starting services with temporary self-signed cert..."
-  $COMPOSE up -d frontend
+  $COMPOSE up -d --no-deps frontend
 
   echo "  -> Requesting real certificate from Let's Encrypt..."
   docker run --rm \
@@ -98,9 +115,13 @@ else
 fi
 
 # ── Step 4: Start all services ──────────────────────────────────────────────
+# --no-deps + explicit service names: the base docker-compose.yml's "postgres"
+# service is still merged in (docker-compose.prod.yml doesn't remove it), and
+# its depends_on would otherwise try to start it — clashing with the real
+# Postgres already listening on host port 5432.
 echo ""
 echo "[4/5] Starting all services..."
-$COMPOSE up -d
+$COMPOSE up -d --no-deps mass-mailer frontend
 
 # ── Step 5: Wait for health checks ─────────────────────────────────────────
 echo ""
