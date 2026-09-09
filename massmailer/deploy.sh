@@ -26,7 +26,11 @@ COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 if command -v mvn >/dev/null 2>&1; then
   MVN="mvn"
 else
-  MVN="$(find /opt -maxdepth 3 -type f -name mvn 2>/dev/null | head -1)"
+  # "|| true" guards against `set -o pipefail`: find can exit non-zero (e.g.
+  # permission-denied on some unrelated /opt subdirectory) even with stderr
+  # suppressed, which would otherwise trip `set -e` right here regardless of
+  # whether a path was actually found.
+  MVN="$(find /opt -maxdepth 3 -type f -name mvn 2>/dev/null | head -1 || true)"
   if [ -z "${MVN}" ]; then
     echo "ERROR: mvn not found on PATH or under /opt."
     exit 1
