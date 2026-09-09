@@ -7,13 +7,14 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # InvoiceDirect Mass Mailer — Production Deployment Script
-# Domain:  https://ap.invoicedirect.biz
-# Backend: localhost:9199 (not exposed to internet)
-# Frontend: nginx reverse-proxy on ports 80/443
+# Domain:   https://ap.invoicedirect.biz
+# Backend:  127.0.0.1:9199 (internal only)
+# Frontend: 127.0.0.1:8199 (internal only)
+# Both are reverse-proxied and TLS-terminated by a host-level nginx — not part
+# of this compose stack — whose certs are managed by its own certbot renewal.
 # ─────────────────────────────────────────────────────────────────────────────
 
 DOMAIN="ap.invoicedirect.biz"
-EMAIL="${CERTBOT_EMAIL:-admin@invoicedirect.biz}"
 # docker-compose.prod.yml points mass-mailer at the platform's existing host
 # Postgres (via host.docker.internal) instead of the base file's own
 # dockerized "postgres" service, which would otherwise try to bind the same
@@ -75,61 +76,26 @@ echo ""
 echo "[2/4] Building Docker images..."
 $COMPOSE build
 
-# ── Step 3: Initial SSL certificate (first-time only) ──────────────────────
-SSL_CERT_DIR="./ssl-certs"
-if [ ! -f "${SSL_CERT_DIR}/fullchain.pem" ]; then
-  echo ""
-  echo "[3/5] Obtaining SSL certificate from Let's Encrypt..."
-  echo "      Make sure DNS for ${DOMAIN} points to this server."
-
-  # Create a temporary nginx config that serves HTTP only (for ACME challenge)
-  mkdir -p "${SSL_CERT_DIR}"
-
-  # Generate a self-signed cert so nginx can start with the SSL config
-  openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
-    -keyout "${SSL_CERT_DIR}/privkey.pem" \
-    -out "${SSL_CERT_DIR}/fullchain.pem" \
-    -subj "/CN=${DOMAIN}" 2>/dev/null
-
-  echo "  -> Starting services with temporary self-signed cert..."
-  $COMPOSE up -d --no-deps frontend
-
-  echo "  -> Requesting real certificate from Let's Encrypt..."
-  docker run --rm \
-    -v "$(pwd)/ssl-certs:/etc/letsencrypt" \
-    -v "$(pwd)/certbot-webroot:/var/www/certbot" \
-    -p 80:80 \
-    certbot/certbot certonly \
-      --standalone \
-      --preferred-challenges http \
-      -d "${DOMAIN}" \
-      --email "${EMAIL}" \
-      --agree-tos \
-      --non-interactive
-
-  # Copy the real certs to the expected location
-  cp "./ssl-certs/live/${DOMAIN}/fullchain.pem" "${SSL_CERT_DIR}/fullchain.pem"
-  cp "./ssl-certs/live/${DOMAIN}/privkey.pem" "${SSL_CERT_DIR}/privkey.pem"
-
-  echo "  -> SSL certificate obtained successfully."
-  $COMPOSE down
-else
-  echo ""
-  echo "[3/5] SSL certificate already exists — skipping."
-fi
-
-# ── Step 4: Start all services ──────────────────────────────────────────────
+# ── Step 3: Start all services ──────────────────────────────────────────────
+# TLS for ${DOMAIN} is terminated by a host-level nginx (not this compose
+# stack) using certs at /etc/letsencrypt/live/${DOMAIN}/, managed by its own
+# certbot renewal outside this repo. The dockerized "frontend"/"mass-mailer"
+# services only bind to 127.0.0.1 (see docker-compose.prod.yml) and are
+# reverse-proxied by that host nginx — there is nothing for this script to
+# provision on ports 80/443, and doing so would conflict with host nginx
+# already listening there.
+#
 # --no-deps + explicit service names: the base docker-compose.yml's "postgres"
 # service is still merged in (docker-compose.prod.yml doesn't remove it), and
 # its depends_on would otherwise try to start it — clashing with the real
 # Postgres already listening on host port 5432.
 echo ""
-echo "[4/5] Starting all services..."
+echo "[3/4] Starting all services..."
 $COMPOSE up -d --no-deps mass-mailer frontend
 
-# ── Step 5: Wait for health checks ─────────────────────────────────────────
+# ── Step 4: Wait for health checks ─────────────────────────────────────────
 echo ""
-echo "[5/5] Waiting for services to be healthy..."
+echo "[4/4] Waiting for services to be healthy..."
 
 for i in $(seq 1 60); do
   status=$($COMPOSE ps --format '{{.Service}} {{.Status}}' | awk '$1=="mass-mailer"{$1=""; sub(/^ /,""); print}')
