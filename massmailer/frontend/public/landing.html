@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InvoiceDirect — Fiscalised invoice delivery, by email or PEPPOL</title>
+<meta name="description" content="InvoiceDirect fiscalises, signs, and routes your invoices — by email or the PEPPOL AS4 network — with ERP integrations for Odoo, Sage Intacct, QuickBooks Online, and Dynamics 365.">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  /* ── Design tokens ─────────────────────────────────────────── */
+  :root {
+    --ink: #111827;
+    --ink-soft: #1f2937;
+    --paper: #f2f4f8;
+    --surface: #ffffff;
+    --surface-2: #eaedf3;
+    --line: #dbe0e8;
+    --muted: #5b6472;
+    --accent: #e85d1b;
+    --accent-deep: #c84d14;
+    --accent-light: #ff8a3d;
+    --accent-wash: #fdeee3;
+    --verified: #1f8a5f;
+    --verified-wash: #e5f4ed;
+    --shadow: 0 1px 2px rgba(17,24,39,.04), 0 12px 32px -16px rgba(17,24,39,.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e8ebf1;
+      --ink-soft: #c7ccd6;
+      --paper: #0b0f17;
+      --surface: #141b28;
+      --surface-2: #1b2434;
+      --line: #29334654;
+      --line: #2a3444;
+      --muted: #8b93a3;
+      --accent: #ff8a3d;
+      --accent-deep: #ffa35c;
+      --accent-light: #ffb87a;
+      --accent-wash: #2a1d12;
+      --verified: #3fbf87;
+      --verified-wash: #10261d;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 20px 40px -20px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ebf1;
+    --ink-soft: #c7ccd6;
+    --paper: #0b0f17;
+    --surface: #141b28;
+    --surface-2: #1b2434;
+    --line: #2a3444;
+    --muted: #8b93a3;
+    --accent: #ff8a3d;
+    --accent-deep: #ffa35c;
+    --accent-light: #ffb87a;
+    --accent-wash: #2a1d12;
+    --verified: #3fbf87;
+    --verified-wash: #10261d;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 20px 40px -20px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light dark; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  h1, h2, h3 { font-family: 'Archivo', 'Inter', sans-serif; text-wrap: balance; margin: 0; color: var(--ink); }
+  p { margin: 0; }
+  code, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  a { color: inherit; }
+  ::selection { background: var(--accent-wash); color: var(--accent-deep); }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  /* ── Nav ───────────────────────────────────────────────────── */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-row { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
+  .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(155deg, var(--accent), var(--accent-deep)); flex-shrink: 0; position: relative; }
+  .brand-mark::after { content: ''; position: absolute; inset: 6px 6px 9px; border: 1.6px solid rgba(255,255,255,.85); border-radius: 2px; }
+  .nav-links { display: flex; align-items: center; gap: 32px; font-size: 14px; font-weight: 500; color: var(--muted); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links { display: none; }
+  @media (min-width: 760px) { .nav-links { display: flex; } }
+  .btn {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 8px;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    transition: background .15s ease, border-color .15s ease, transform .15s ease;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-deep); }
+  .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink); }
+  .btn-ghost:hover { border-color: var(--muted); }
+  .btn:active { transform: translateY(1px); }
+
+  /* ── Hero ──────────────────────────────────────────────────── */
+  .hero { padding: 76px 0 64px; }
+  .hero-grid { display: grid; gap: 44px; align-items: start; }
+  @media (min-width: 920px) { .hero-grid { grid-template-columns: 1fr; } }
+  .hero h1 {
+    font-size: clamp(34px, 5.4vw, 58px);
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1.06;
+    margin-top: 18px;
+    max-width: 15ch;
+  }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero-sub { margin-top: 20px; font-size: 18px; line-height: 1.6; color: var(--muted); max-width: 56ch; }
+  .hero-actions { margin-top: 30px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero-note { margin-top: 14px; font-size: 13px; color: var(--muted); }
+
+  /* ── Manifest pipeline ─────────────────────────────────────── */
+  .manifest {
+    margin-top: 56px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .manifest-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+  .manifest-head .title { font-size: 13px; font-weight: 600; color: var(--muted); font-family: 'IBM Plex Mono', monospace; letter-spacing: .02em; }
+  .manifest-head .status { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--verified); font-family: 'IBM Plex Mono', monospace; }
+  .manifest-head .status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--verified); animation: pulse 2.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  .route { display: flex; flex-direction: column; gap: 0; padding: 26px 22px 22px; }
+  .route-row { display: flex; align-items: stretch; gap: 14px; }
+  @media (max-width: 719px) { .route-row { flex-direction: column; } }
+  .stop {
+    flex: 1;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 16px 14px;
+    background: var(--paper);
+    position: relative;
+    min-width: 0;
+  }
+  .stop .n { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: .06em; }
+  .stop h3 { font-size: 15px; font-weight: 700; margin-top: 6px; letter-spacing: -.01em; }
+  .stop p { margin-top: 6px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .stop .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+  }
+  .stop.rail-email { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+  .stop.rail-peppol { border-color: color-mix(in srgb, var(--verified) 35%, var(--line)); }
+  .stop.verified { background: var(--verified-wash); border-color: color-mix(in srgb, var(--verified) 45%, var(--line)); }
+  .stop.verified h3 { color: var(--verified); }
+
+  .connector { display: flex; align-items: center; justify-content: center; height: 30px; color: var(--muted); }
+  .connector svg { width: 18px; height: 18px; }
+  .connector-row { display: flex; }
+  @media (max-width: 719px) { .connector { height: 22px; } .connector svg { transform: rotate(90deg); } }
+
+  .fork { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 719px) { .fork { grid-template-columns: 1fr; } }
+
+  /* ── Codes ticker ──────────────────────────────────────────── */
+  .codes-strip {
+    margin-top: 18px;
+    border-top: 1px dashed var(--line);
+    padding: 14px 22px 20px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .codes-strip .label { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+  .code-chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 8px;
+  }
+
+  /* ── Compliance strip ──────────────────────────────────────── */
+  .compliance { padding: 34px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); }
+  .compliance-row { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; justify-content: space-between; }
+  .compliance-label { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; flex-shrink: 0; }
+  .badges { display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+  }
+
+  /* ── Section shell ─────────────────────────────────────────── */
+  section.block { padding: 88px 0; }
+  .block-head { max-width: 640px; margin-bottom: 46px; }
+  .block-head h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; letter-spacing: -.015em; margin-top: 14px; }
+  .block-head p { margin-top: 14px; font-size: 16px; color: var(--muted); line-height: 1.6; }
+
+  /* ── Rails detail ──────────────────────────────────────────── */
+  .rails { display: grid; gap: 22px; grid-template-columns: 1fr; }
+  @media (min-width: 800px) { .rails { grid-template-columns: 1fr 1fr; } }
+  .rail-card {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px 26px 26px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .rail-card .icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 13px;
+  }
+  .rail-card.email .icon { background: var(--accent-wash); color: var(--accent-deep); }
+  .rail-card.peppol .icon { background: var(--verified-wash); color: var(--verified); }
+  .rail-card h3 { margin-top: 18px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+  .rail-card .kicker { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; margin-top: 4px; display: block; }
+  .rail-card ul { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .rail-card li { display: flex; gap: 10px; font-size: 14.5px; color: var(--ink-soft); line-height: 1.5; }
+  .rail-card li svg { flex-shrink: 0; margin-top: 3px; width: 14px; height: 14px; }
+  .rail-card.email li svg { color: var(--accent); }
+  .rail-card.peppol li svg { color: var(--verified); }
+
+  /* ── Feature grid ──────────────────────────────────────────── */
+  .features { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; grid-template-columns: 1fr; }
+  @media (min-width: 700px) { .features { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1020px) { .features { grid-template-columns: repeat(3, 1fr); } }
+  .feature { background: var(--surface); padding: 26px 24px; }
+  .feature .num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent-deep); }
+  .feature h3 { margin-top: 10px; font-size: 16.5px; font-weight: 700; letter-spacing: -.01em; }
+  .feature p { margin-top: 8px; font-size: 14px; color: var(--muted); line-height: 1.55; }
+
+  /* ── ERP strip ─────────────────────────────────────────────── */
+  .erp-strip { display: grid; grid-template-columns: repeat(2,1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  @media (min-width: 700px) { .erp-strip { grid-template-columns: repeat(4,1fr); } }
+  .erp-cell { background: var(--surface); padding: 22px 18px; text-align: center; }
+  .erp-cell .mark { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+  .erp-cell .stat { display: inline-block; margin-top: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 3px 9px; border-radius: 999px; }
+  .erp-cell .stat.live { background: var(--verified-wash); color: var(--verified); }
+  .erp-cell .stat.soon { background: var(--surface-2); color: var(--muted); }
+
+  /* ── Pricing (contact) ─────────────────────────────────────── */
+  .pricing-contact {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    padding: 32px 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .pricing-contact .kicker { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+  .pricing-contact h3 { margin-top: 6px; font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+  .pricing-contact p { margin-top: 8px; font-size: 14.5px; color: var(--muted); max-width: 46ch; line-height: 1.55; }
+
+  /* ── CTA ───────────────────────────────────────────────────── */
+  .cta {
+    border-radius: 20px;
+    background: var(--ink);
+    color: #f4f5f7;
+    padding: 56px 44px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(560px 260px at 88% -10%, color-mix(in srgb, var(--accent) 35%, transparent), transparent 70%);
+    pointer-events: none;
+  }
+  .cta h2 { color: #fff; font-size: clamp(24px,3vw,32px); max-width: 20ch; }
+  .cta p { color: #b6bcc8; max-width: 52ch; font-size: 15.5px; }
+  .cta-stamp {
+    position: absolute; right: 40px; top: 40px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: .1em;
+    border: 1.5px solid rgba(255,255,255,.25);
+    color: rgba(255,255,255,.5);
+    border-radius: 999px;
+    padding: 5px 12px;
+    transform: rotate(6deg);
+    display: none;
+  }
+  @media (min-width: 760px) { .cta-stamp { display: block; } }
+
+  footer { border-top: 1px solid var(--line); padding: 34px 0 44px; }
+  .foot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; font-size: 13px; color: var(--muted); }
+  .foot-row a { color: var(--muted); text-decoration: none; }
+  .foot-row a:hover { color: var(--ink); }
+  .foot-links { display: flex; gap: 20px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-row">
+    <div class="brand"><span class="brand-mark"></span>InvoiceDirect</div>
+    <nav class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#rails">Delivery rails</a>
+      <a href="#erp">Integrations</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <div style="display:flex; gap:10px;">
+      <a class="btn btn-ghost" href="/login">Sign in</a>
+      <a class="btn btn-primary" href="/register">Get started</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Invoice delivery infrastructure</span>
+        <h1>Every invoice, verified <em>before</em> it ever leaves the building.</h1>
+        <p class="hero-sub">InvoiceDirect fiscalises, signs, and routes your invoices — by email or the PEPPOL AS4 network — so finance teams stop manually chasing deliveries that should have arrived the first time.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/register">Get started</a>
+          <a class="btn btn-ghost" href="#how">See how routing works ↓</a>
+        </div>
+        <p class="hero-note">Fiscalised for ZIMRA · Signed and validated for the PEPPOL network · Live in minutes with Odoo</p>
+
+        <div class="manifest" id="how">
+          <div class="manifest-head">
+            <span class="title">MANIFEST — inv/2026-09/4578</span>
+            <span class="status">DELIVERED</span>
+          </div>
+          <div class="route">
+            <div class="route-row">
+              <div class="stop">
+                <span class="n">01 · SOURCE</span>
+                <h3>Your ERP</h3>
+                <p>Invoice raised in your accounting system, or dropped in as a PDF.</p>
+                <div class="tags"><span class="tag">Odoo</span><span class="tag">Sage</span><span class="tag">QuickBooks</span><span class="tag">D365</span></div>
+              </div>
+              <div class="connector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h14M13 6l6 6-6 6"/></svg></div>
+              <div class="stop">
+                <span class="n">02 · FISCAL CHECK</span>
+                <h3>ZIMRA validation</h3>
+                <p>Checked for a live FDMS verification code and device fields before dispatch.</p>
+                <div class="tags"><span class="tag mono">B993-BD3C-88A8-0A3C</span></div>
+              </div>
+              <div class="connector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h14M13 6l6 6-6 6"/></svg></div>
+              <div class="stop">
+                <span class="n">03 · SIGN &amp; VALIDATE</span>
+                <h3>UBL + XML-DSIG</h3>
+                <p>Built as UBL 2.1 BIS Billing 3.0, schema-checked, then signed.</p>
+                <div class="tags"><span class="tag">EN16931</span><span class="tag">XML-DSIG</span></div>
+              </div>
+            </div>
+
+            <div class="connector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v14M6 13l6 6 6-6"/></svg></div>
+
+            <div class="fork">
+              <div class="stop rail-email">
+                <span class="n">04a · RAIL — EMAIL</span>
+                <h3>PDF to inbox</h3>
+                <p>Sent as a fiscalised PDF with delivery + open tracking.</p>
+              </div>
+              <div class="stop rail-peppol">
+                <span class="n">04b · RAIL — PEPPOL AS4</span>
+                <h3>4-corner network</h3>
+                <p>Routed via SMP lookup, encrypted ebMS3.0 transport.</p>
+              </div>
+            </div>
+
+            <div class="connector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v14M6 13l6 6 6-6"/></svg></div>
+
+            <div class="stop verified">
+              <span class="n">05 · CONFIRMED</span>
+              <h3>Receipt logged, webhook fired</h3>
+              <p>If either rail fails, InvoiceDirect retries and falls back to the other automatically.</p>
+            </div>
+          </div>
+          <div class="codes-strip">
+            <span class="label">Example fiscal verification codes issued on this route:</span>
+            <span class="code-chip">E960606B-FCB6-F08A</span>
+            <span class="code-chip">A31C7D02-9E4F-11B3</span>
+            <span class="code-chip">7B84F0A1-2C6D-40E7</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="compliance">
+    <div class="wrap compliance-row">
+      <span class="compliance-label">Built to standard</span>
+      <div class="badges">
+        <span class="badge">ZIMRA FDMS</span>
+        <span class="badge">PEPPOL BIS 3.0</span>
+        <span class="badge">UBL 2.1</span>
+        <span class="badge">EN16931</span>
+        <span class="badge">AS4 ebMS 3.0</span>
+        <span class="badge">XML-DSIG / XML-Enc</span>
+        <span class="badge">ISO 6523</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="rails">
+    <div class="wrap">
+      <div class="block-head">
+        <span class="eyebrow">Two rails, one invoice</span>
+        <h2>Not every customer is on the PEPPOL network yet. Deliver to both.</h2>
+        <p>InvoiceDirect treats email and PEPPOL AS4 as equal, first-class delivery rails — not a network mode with an email afterthought. Every recipient gets the rail that actually reaches them.</p>
+      </div>
+      <div class="rails">
+        <div class="rail-card email">
+          <div class="icon">@</div>
+          <span class="kicker">Rail A</span>
+          <h3>Email delivery</h3>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Fiscalised PDF attached, sent via SMTP with your own sender identity</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Custom Thymeleaf templates per organisation</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Bulk campaigns, single sends, or ERP-triggered dispatch</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Bounces and failures retried automatically</li>
+          </ul>
+        </div>
+        <div class="rail-card peppol">
+          <div class="icon">P</div>
+          <span class="kicker">Rail B</span>
+          <h3>PEPPOL AS4 network</h3>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>4-corner model routing with live SMP/SML lookup</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>UBL BIS Billing 3.0, XML-DSIG signed, XML-Enc encrypted</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Certificate lifecycle managed for you, per organisation</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Falls back to email automatically if the network can't be reached</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top:0;">
+    <div class="wrap">
+      <div class="block-head">
+        <span class="eyebrow">Why finance teams keep it</span>
+        <h2>Compliance built into the pipe, not bolted onto the invoice.</h2>
+        <p>The checks that usually happen in someone's inbox — "did this actually fiscalise?", "did the customer get it?" — happen before dispatch, every time.</p>
+      </div>
+      <div class="features">
+        <div class="feature">
+          <span class="num">01</span>
+          <h3>Fiscal gate, not an honour system</h3>
+          <p>Every PDF is scanned for its ZIMRA FDMS verification URL, verification code, and fiscal device fields before it's allowed to send.</p>
+        </div>
+        <div class="feature">
+          <span class="num">02</span>
+          <h3>Usage-based billing, tiered by volume</h3>
+          <p>A monthly base fee plus per-invoice tiers that step down as volume grows — priced against what you actually send, per organisation.</p>
+        </div>
+        <div class="feature">
+          <span class="num">03</span>
+          <h3>Multi-tenant by design</h3>
+          <p>Run one platform, many organisations — each with its own senders, templates, PEPPOL certificates, and rate profile.</p>
+        </div>
+        <div class="feature">
+          <span class="num">04</span>
+          <h3>Hexagonal ERP adapters</h3>
+          <p>A single port interface behind every ERP connector, so adding the next accounting system doesn't touch delivery logic.</p>
+        </div>
+        <div class="feature">
+          <span class="num">05</span>
+          <h3>Retry and fallback, automatic</h3>
+          <p>A failed PEPPOL delivery doesn't sit in a queue — it drops to email. A bounced email gets retried on schedule.</p>
+        </div>
+        <div class="feature">
+          <span class="num">06</span>
+          <h3>Webhooks for every status</h3>
+          <p>Sent, delivered, bounced, fiscal-check-failed — pushed to your systems the moment they happen, signed for verification.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="erp" style="padding-top:0;">
+    <div class="wrap">
+      <div class="block-head">
+        <span class="eyebrow">Plugs into what you already run</span>
+        <h2>ERP integration, without rebuilding your accounting stack.</h2>
+        <p>Invoices are fetched, or pushed in, through a pluggable adapter — your billing system stays the source of truth.</p>
+      </div>
+      <div class="erp-strip">
+        <div class="erp-cell"><div class="mark">Odoo</div><span class="stat live">Live</span></div>
+        <div class="erp-cell"><div class="mark">Sage Intacct</div><span class="stat live">Live</span></div>
+        <div class="erp-cell"><div class="mark">QuickBooks</div><span class="stat live">Live</span></div>
+        <div class="erp-cell"><div class="mark">Dynamics 365</div><span class="stat live">Live</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="pricing" style="padding-top:0;">
+    <div class="wrap">
+      <div class="block-head">
+        <span class="eyebrow">Pricing</span>
+        <h2>Usage-based, shaped around your invoice volume.</h2>
+        <p>Rate profiles are tiered per organisation — a base fee plus a per-invoice rate that steps down as volume grows.</p>
+      </div>
+      <div class="pricing-contact">
+        <div>
+          <span class="kicker">Rate profile</span>
+          <h3>Contact us for pricing</h3>
+          <p>Tell us your monthly invoice volume and which rails you need — email, PEPPOL, or both — and we'll put together a rate profile.</p>
+        </div>
+        <a class="btn btn-primary" href="mailto:support@esolutions.co.zw?subject=InvoiceDirect%20pricing%20enquiry">Talk to sales</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="get-started" style="padding-top:0; padding-bottom:96px;">
+    <div class="wrap">
+      <div class="cta">
+        <span class="cta-stamp">ROUTE · VERIFIED</span>
+        <h2>Stop being the fallback delivery method for your own invoices.</h2>
+        <p>Connect your ERP, add a sender, and the first fiscalised invoice can be on its way — by email or PEPPOL — inside a working session.</p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <a class="btn btn-primary" href="/register">Get started free</a>
+          <a class="btn btn-ghost" style="border-color: rgba(255,255,255,.25); color:#fff;" href="#how">Read the routing docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-row">
+    <div class="brand" style="font-size:14px;"><span class="brand-mark" style="width:18px;height:18px;"></span>InvoiceDirect</div>
+    <div class="foot-links">
+      <a href="#how">How it works</a>
+      <a href="#erp">Integrations</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#">API docs</a>
+    </div>
+    <div>Fiscalised invoice delivery, on two rails.</div>
+  </div>
+</footer>
+</body>
+</html>
