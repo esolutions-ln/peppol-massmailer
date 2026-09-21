@@ -7,7 +7,7 @@ services:
   mass-mailer:
     build: .
     ports:
-      - "127.0.0.1:9199:9199"
+      - "10.218.0.5:9199:9199"
     # DB_HOST must resolve to this alias — the platform Postgres runs on the
     # host, not in a "postgres" compose service.
     extra_hosts:
@@ -64,7 +64,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "127.0.0.1:8199:80"
+      - "10.218.0.5:8199:80"
     depends_on:
       mass-mailer:
         condition: service_started
