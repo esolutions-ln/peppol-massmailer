@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # Run from this script's directory (massmailer/) so the relative paths below
-# — .env, pdf-watcher-common, ./inbox — resolve regardless of the caller's cwd.
+# — .env, ../pdf-watcher-common, ./inbox — resolve regardless of the caller's cwd.
+# pdf-watcher-common is a sibling of massmailer/ at the repo root, not nested
+# inside it.
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,13 +62,13 @@ fi
 echo ""
 echo "[1/4] Building application..."
 
-if [ ! -d pdf-watcher-common ]; then
+if [ ! -d ../pdf-watcher-common ]; then
   echo "ERROR: pdf-watcher-common/ directory not found."
   exit 1
 fi
 
 echo "  -> Installing pdf-watcher-common module..."
-"${MVN}" install -f pdf-watcher-common/pom.xml -q
+"${MVN}" install -f ../pdf-watcher-common/pom.xml -q
 
 echo "  -> Building mass-mailer service..."
 "${MVN}" clean package -DskipTests -q
