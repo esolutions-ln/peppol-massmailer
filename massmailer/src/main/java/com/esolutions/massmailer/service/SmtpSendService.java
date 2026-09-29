@@ -8,6 +8,9 @@ import com.esolutions.massmailer.customer.model.Contact;
 import com.esolutions.massmailer.customer.service.ContactService;
 import com.esolutions.massmailer.model.DeliveryResult;
 import com.esolutions.massmailer.service.PdfAttachmentResolver.ResolvedAttachment;
+import com.esolutions.massmailer.trail.MailSendAttempt;
+import com.esolutions.massmailer.trail.MailTrailRecorder;
+import com.esolutions.massmailer.trail.SendContext;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -17,13 +20,16 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.support.RetrySynchronizationManager;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 
@@ -38,6 +44,7 @@ import java.util.concurrent.Semaphore;
  *  - Per-org "From" resolution via {@link BrevoSenderResolver}
  *  - Rate-limited via Semaphore to avoid provider throttling
  *  - Retried on transient failures via {@code @Retryable}
+ *  - Every transport attempt recorded on the email sending trail ({@link MailTrailRecorder})
  */
 @Service
 public class SmtpSendService {
@@ -50,19 +57,22 @@ public class SmtpSendService {
     private final BrevoSenderResolver senderResolver;
     private final BrevoEmailClient brevo; // null when massmailer.brevo.enabled=false
     private final ContactService contactService;
+    private final MailTrailRecorder trail;
 
     public SmtpSendService(JavaMailSender mailSender,
                            MailerProperties props,
                            Semaphore rateLimiter,
                            BrevoSenderResolver senderResolver,
                            ObjectProvider<BrevoEmailClient> brevoProvider,
-                           ContactService contactService) {
+                           ContactService contactService,
+                           MailTrailRecorder trail) {
         this.mailSender = mailSender;
         this.props = props;
         this.rateLimiter = rateLimiter;
         this.senderResolver = senderResolver;
         this.brevo = brevoProvider.getIfAvailable();
         this.contactService = contactService;
+        this.trail = trail;
     }
 
     private boolean brevoEnabled() {
@@ -94,6 +104,7 @@ public class SmtpSendService {
      */
     @Retryable(
             retryFor = MessagingException.class,
+            noRetryFor = SmtpAuthenticationException.class,
             maxAttempts = 3,
             backoff = @Backoff(delay = 2000, multiplier = 2.0)
     )
@@ -102,21 +113,55 @@ public class SmtpSendService {
                                 ResolvedAttachment attachment,
                                 String customerAccountNumber,
                                 String customerTinNumber) throws MessagingException {
+        return send(toEmail, toName, subject, htmlBody, invoiceNumber, attachment,
+                customerAccountNumber, customerTinNumber, SendContext.unspecified());
+    }
+
+    /**
+     * Full-context send. {@code context} identifies the originating subsystem, org and
+     * campaign for the sending trail; background callers (no authenticated org) should
+     * pass the owning organisation explicitly.
+     */
+    @Retryable(
+            retryFor = MessagingException.class,
+            noRetryFor = SmtpAuthenticationException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 2.0)
+    )
+    public DeliveryResult send(String toEmail, String toName, String subject,
+                                String htmlBody, String invoiceNumber,
+                                ResolvedAttachment attachment,
+                                String customerAccountNumber,
+                                String customerTinNumber,
+                                SendContext context) throws MessagingException {
         Sender from = senderResolver.resolve(customerAccountNumber, customerTinNumber);
+        List<Contact> ccContacts = resolveCcContacts(toEmail);
+        MailTrailRecorder.Attempt attempt = beginAttempt(context, from, toEmail, ccContacts,
+                subject, invoiceNumber, attachment);
         try {
             rateLimiter.acquire();
             try {
-                if (brevoEnabled()) {
-                    return sendViaBrevo(from, toEmail, toName, subject, htmlBody, invoiceNumber, attachment, customerAccountNumber);
-                }
-                return sendViaJavaMail(from, toEmail, toName, subject, htmlBody, invoiceNumber, attachment);
+                DeliveryResult result = brevoEnabled()
+                        ? sendViaBrevo(from, toEmail, toName, subject, htmlBody, invoiceNumber, attachment, customerAccountNumber, ccContacts)
+                        : sendViaJavaMail(from, toEmail, toName, subject, htmlBody, invoiceNumber, attachment, ccContacts);
+                trail.recordResult(attempt, result);
+                return result;
+            } catch (SmtpAuthenticationException e) {
+                MailSendAttempt rec = trail.recordFailure(attempt, e, true, false);
+                // Surface the refused IP and trail id to the API caller
+                throw new SmtpAuthenticationException(e.getMessage() + diagnosticsSuffix(rec), e);
+            } catch (MessagingException e) {
+                trail.recordFailure(attempt, e, false, isRetryable(e));
+                throw e;
             } finally {
                 rateLimiter.release();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return new DeliveryResult.Failed(toEmail, invoiceNumber,
+            DeliveryResult result = new DeliveryResult.Failed(toEmail, invoiceNumber,
                     "Thread interrupted during rate-limit wait", false);
+            trail.recordResult(attempt, result);
+            return result;
         }
     }
 
@@ -135,9 +180,21 @@ public class SmtpSendService {
                                             ResolvedAttachment attachment,
                                             String customerAccountNumber,
                                             String customerTinNumber) {
+        return sendWithFallback(toEmail, toName, subject, htmlBody, invoiceNumber, attachment,
+                customerAccountNumber, customerTinNumber, SendContext.unspecified());
+    }
+
+    public DeliveryResult sendWithFallback(String toEmail, String toName, String subject,
+                                            String htmlBody, String invoiceNumber,
+                                            ResolvedAttachment attachment,
+                                            String customerAccountNumber,
+                                            String customerTinNumber,
+                                            SendContext context) {
         try {
             return send(toEmail, toName, subject, htmlBody, invoiceNumber, attachment,
-                    customerAccountNumber, customerTinNumber);
+                    customerAccountNumber, customerTinNumber, context);
+        } catch (SmtpAuthenticationException e) {
+            return new DeliveryResult.Failed(toEmail, invoiceNumber, e.getMessage(), false);
         } catch (MessagingException e) {
             return new DeliveryResult.Failed(toEmail, invoiceNumber,
                     e.getMessage(), isRetryable(e));
@@ -148,7 +205,8 @@ public class SmtpSendService {
 
     private DeliveryResult sendViaBrevo(Sender from, String toEmail, String toName,
                                         String subject, String htmlBody, String invoiceNumber,
-                                        ResolvedAttachment attachment, String accountNumber) throws MessagingException {
+                                        ResolvedAttachment attachment, String accountNumber,
+                                        List<Contact> ccContacts) throws MessagingException {
         try {
             var req = BrevoEmailClient.SendRequest.builder()
                     .sender(from.email(), from.name())
@@ -170,7 +228,6 @@ public class SmtpSendService {
                 req.tag("invoice");
             }
 
-            var ccContacts = resolveCcContacts(toEmail);
             ccContacts.forEach(c -> req.cc(c.getEmail(), c.getName()));
 
             if (accountNumber != null) {
@@ -201,7 +258,8 @@ public class SmtpSendService {
 
     private DeliveryResult sendViaJavaMail(Sender from, String toEmail, String toName,
                                            String subject, String htmlBody, String invoiceNumber,
-                                           ResolvedAttachment attachment) throws MessagingException {
+                                           ResolvedAttachment attachment,
+                                           List<Contact> ccContacts) throws MessagingException {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             boolean hasAttachment = attachment != null;
@@ -216,7 +274,6 @@ public class SmtpSendService {
                 helper.setTo(toEmail);
             }
 
-            var ccContacts = resolveCcContacts(toEmail);
             if (!ccContacts.isEmpty()) {
                 var ccAddresses = new InternetAddress[ccContacts.size()];
                 for (int i = 0; i < ccContacts.size(); i++) {
@@ -262,8 +319,7 @@ public class SmtpSendService {
             // Rejected credentials / unauthorised client IP — retrying won't help.
             String reason = rootCauseMessage(e);
             log.error("✗ SMTP authentication failed for {} (invoice {}): {}", toEmail, invoiceNumber, reason);
-            return new DeliveryResult.Failed(toEmail, invoiceNumber,
-                    "SMTP authentication failed: " + reason, false);
+            throw new SmtpAuthenticationException("SMTP authentication failed: " + reason, e);
         } catch (MailException e) {
             // JavaMailSender throws Spring's unchecked MailException, not MessagingException.
             // Map it so @Retryable engages and sendWithFallback can absorb it.
@@ -291,6 +347,47 @@ public class SmtpSendService {
                         .filter(c -> !c.getEmail().equalsIgnoreCase(toEmail.trim()))
                         .toList())
                 .orElse(List.of());
+    }
+
+    private MailTrailRecorder.Attempt beginAttempt(SendContext context, Sender from, String toEmail,
+                                                   List<Contact> ccContacts, String subject,
+                                                   String invoiceNumber, ResolvedAttachment attachment) {
+        SendContext ctx = context != null ? context : SendContext.unspecified();
+        var orgId = ctx.organizationId() != null ? ctx.organizationId() : from.organizationId();
+        var retryCtx = RetrySynchronizationManager.getContext();
+        int attemptNumber = retryCtx == null ? 1 : retryCtx.getRetryCount() + 1;
+
+        MailSendAttempt.Transport transport;
+        String host = null;
+        Integer port = null;
+        if (brevoEnabled()) {
+            transport = MailSendAttempt.Transport.BREVO;
+            try {
+                URI uri = URI.create(props.brevo().baseUrl());
+                host = uri.getHost();
+                port = uri.getPort() > 0 ? uri.getPort() : 443;
+            } catch (IllegalArgumentException ignored) {
+                // leave host unknown
+            }
+        } else {
+            transport = MailSendAttempt.Transport.SMTP;
+            if (mailSender instanceof JavaMailSenderImpl impl) {
+                host = impl.getHost();
+                port = impl.getPort() > 0 ? impl.getPort() : null;
+            }
+        }
+        return trail.begin(ctx, orgId, from.email(), toEmail,
+                ccContacts.stream().map(Contact::getEmail).toList(),
+                subject, invoiceNumber, transport, host, port, attemptNumber,
+                attachment != null ? attachment.sizeBytes() : null);
+    }
+
+    private static String diagnosticsSuffix(MailSendAttempt rec) {
+        if (rec == null) return "";
+        StringBuilder sb = new StringBuilder(" [");
+        if (rec.egressIp() != null) sb.append("sending IP ").append(rec.egressIp()).append(", ");
+        sb.append("trail ").append(rec.id()).append(']');
+        return sb.toString();
     }
 
     private static String rootCauseMessage(Throwable e) {

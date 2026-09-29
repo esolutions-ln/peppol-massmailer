@@ -80,6 +80,14 @@ massmailer:
     api-key: ${BREVO_API_KEY:}
     base-url: ${BREVO_BASE_URL:https://api.brevo.com/v3}
     timeout-seconds: ${BREVO_TIMEOUT_SECONDS:30}
+  # Email sending trail — one mail_send_attempts row per transport attempt,
+  # exposed at /api/v1/my/mail-trail and /api/v1/admin/mail-trail.
+  trail:
+    enabled: ${MAIL_TRAIL_ENABLED:true}
+    # Plain-text "what is my IP" endpoint used to record the public egress IP the
+    # mail provider sees (the one to allow-list). Blank disables the lookup.
+    egress-ip-lookup-url: ${MAIL_EGRESS_IP_LOOKUP_URL:https://api.ipify.org}
+    egress-ip-cache-seconds: ${MAIL_EGRESS_IP_CACHE_SECONDS:600}
 
 webhook:
   # No default — production must provide a strong secret (>=32 chars).

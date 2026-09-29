@@ -15,6 +15,7 @@ import com.esolutions.massmailer.organization.repository.OrganizationRepository;
 import com.esolutions.massmailer.repository.CampaignRepository;
 import com.esolutions.massmailer.repository.RecipientRepository;
 import com.esolutions.massmailer.service.PdfAttachmentResolver.ResolvedAttachment;
+import com.esolutions.massmailer.trail.SendContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -393,7 +394,8 @@ public class CampaignOrchestrator {
                 recipient.getEmail(), recipient.getName(),
                 campaign.getSubject(), html,
                 invoiceNum, pdf,
-                recipient.getAccountNumber(), null);
+                recipient.getAccountNumber(), null,
+                new SendContext(SendContext.Source.CAMPAIGN, campaign.getOrganizationId(), campaign.getId()));
     }
 
     /**
