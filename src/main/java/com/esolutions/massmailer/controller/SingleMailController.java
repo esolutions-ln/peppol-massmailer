@@ -9,6 +9,7 @@ import com.esolutions.massmailer.service.CustomTemplateRenderer;
 import com.esolutions.massmailer.service.PdfAttachmentResolver;
 import com.esolutions.massmailer.service.PdfAttachmentResolver.ResolvedAttachment;
 import com.esolutions.massmailer.service.SmtpSendService;
+import com.esolutions.massmailer.trail.SendContext;
 import com.esolutions.massmailer.service.TemplateRenderService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -323,7 +324,8 @@ public class SingleMailController {
                 request.to(), request.recipientName(),
                 subject, html,
                 request.invoiceNumber(), pdf,
-                request.customerAccountNumber(), request.customerTinNumber());
+                request.customerAccountNumber(), request.customerTinNumber(),
+                SendContext.of(SendContext.Source.SINGLE_API));
 
         // ── 5. Pattern match on sealed result ──
         return switch (result) {
@@ -436,7 +438,8 @@ public class SingleMailController {
                 request.to(), request.recipientName(),
                 subject, html,
                 request.invoiceNumber(), pdf,
-                request.customerAccountNumber(), request.customerTinNumber());
+                request.customerAccountNumber(), request.customerTinNumber(),
+                SendContext.of(SendContext.Source.SINGLE_API_UPLOAD));
 
         return switch (result) {
             case DeliveryResult.Delivered d -> ResponseEntity.ok(new SingleMailResponse(

@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Resolves the "From" identity for an outbound mail.
@@ -43,8 +44,12 @@ public class BrevoSenderResolver {
         this.props = props;
     }
 
-    /** Sender identity to use on an outbound mail. */
-    public record Sender(String email, String name, String replyTo) {}
+    /**
+     * Sender identity to use on an outbound mail.
+     *
+     * @param organizationId the organisation the sender was resolved from; null for the platform default
+     */
+    public record Sender(String email, String name, String replyTo, UUID organizationId) {}
 
     /**
      * Resolve the sender by current auth and optional customer lookup hints.
@@ -64,7 +69,7 @@ public class BrevoSenderResolver {
         }
 
         log.debug("No org/customer context available — falling back to MailerProperties default sender");
-        return new Sender(props.fromAddress(), props.fromName(), props.fromAddress());
+        return new Sender(props.fromAddress(), props.fromName(), props.fromAddress(), null);
     }
 
     /** Convenience: resolve with no customer hints (auth-only or fallback). */
@@ -108,6 +113,6 @@ public class BrevoSenderResolver {
                 ? o.getSenderDisplayName() : props.fromName();
         String replyTo = (o.getReplyToEmail() != null && !o.getReplyToEmail().isBlank())
                 ? o.getReplyToEmail() : email;
-        return new Sender(email, name, replyTo);
+        return new Sender(email, name, replyTo, o.getId());
     }
 }

@@ -34,6 +34,9 @@ app:
   base-url: http://localhost:5173
 
 massmailer:
+  trail:
+    # No outbound "what is my IP" calls from tests
+    egress-ip-lookup-url: ""
   from-address: noreply@test.com
   from-name: Test Mailer
   rate-limit: 5

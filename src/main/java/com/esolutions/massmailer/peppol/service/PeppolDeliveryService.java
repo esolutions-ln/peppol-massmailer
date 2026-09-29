@@ -24,6 +24,7 @@ import com.esolutions.massmailer.peppol.smp.SmpServiceMetadata;
 import com.esolutions.massmailer.peppol.ubl.UblInvoiceBuilder;
 import com.esolutions.massmailer.service.PdfAttachmentResolver;
 import com.esolutions.massmailer.service.SmtpSendService;
+import com.esolutions.massmailer.trail.SendContext;
 import com.esolutions.massmailer.service.TemplateRenderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -432,7 +433,8 @@ public class PeppolDeliveryService {
 
             smtpSendService.sendWithFallback(
                     buyer.getEmail(), buyer.getName(), subject, html,
-                    invoice.invoiceNumber(), attachment);
+                    invoice.invoiceNumber(), attachment, null, null,
+                    new SendContext(SendContext.Source.PEPPOL_NOTIFICATION, supplier.getId(), null));
 
             log.info("PEPPOL notification sent to unregistered buyer {} for invoice {}",
                     buyer.getEmail(), invoice.invoiceNumber());
