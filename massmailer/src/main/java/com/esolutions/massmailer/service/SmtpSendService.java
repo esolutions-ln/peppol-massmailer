@@ -14,6 +14,8 @@ import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.mail.MailAuthenticationException;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.retry.annotation.Backoff;
@@ -256,6 +258,18 @@ public class SmtpSendService {
                         invoiceNumber, toEmail, ccEmails, messageId, attachmentSize, from.email());
             }
             return new DeliveryResult.Delivered(toEmail, invoiceNumber, messageId, attachmentSize);
+        } catch (MailAuthenticationException e) {
+            // Rejected credentials / unauthorised client IP — retrying won't help.
+            String reason = rootCauseMessage(e);
+            log.error("✗ SMTP authentication failed for {} (invoice {}): {}", toEmail, invoiceNumber, reason);
+            return new DeliveryResult.Failed(toEmail, invoiceNumber,
+                    "SMTP authentication failed: " + reason, false);
+        } catch (MailException e) {
+            // JavaMailSender throws Spring's unchecked MailException, not MessagingException.
+            // Map it so @Retryable engages and sendWithFallback can absorb it.
+            String reason = rootCauseMessage(e);
+            log.error("✗ SMTP failure for {} (invoice {}): {}", toEmail, invoiceNumber, reason);
+            throw new MessagingException("SMTP send failed: " + reason, e);
         } catch (MessagingException e) {
             log.error("✗ SMTP failure for {} (invoice {}): {}", toEmail, invoiceNumber, e.getMessage());
             throw e;
@@ -277,6 +291,15 @@ public class SmtpSendService {
                         .filter(c -> !c.getEmail().equalsIgnoreCase(toEmail.trim()))
                         .toList())
                 .orElse(List.of());
+    }
+
+    private static String rootCauseMessage(Throwable e) {
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String msg = root.getMessage() != null ? root.getMessage() : e.getMessage();
+        return msg != null ? msg.strip() : root.getClass().getSimpleName();
     }
 
     private boolean isRetryable(MessagingException e) {
