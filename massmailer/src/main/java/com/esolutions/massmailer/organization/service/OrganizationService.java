@@ -96,6 +96,7 @@ public class OrganizationService {
                 .companyName(request.name())
                 .companyAddress(request.companyAddress())
                 .accountsEmail(request.accountsEmail())
+                .replyToEmail(request.replyToEmail())
                 .primaryErpSource(request.primaryErpSource())
                 .erpTenantId(request.erpTenantId())
                 .vatNumber(request.vatNumber())
@@ -193,7 +194,8 @@ public class OrganizationService {
     public Organization update(UUID id,
                                String name, String slug,
                                String senderEmail, String senderDisplayName,
-                               String accountsEmail, String companyAddress,
+                               String accountsEmail, String replyToEmail,
+                               String companyAddress,
                                String primaryErpSource, String erpTenantId,
                                String vatNumber, String tinNumber,
                                String peppolParticipantId,
@@ -214,6 +216,7 @@ public class OrganizationService {
         if (senderEmail != null && !senderEmail.isBlank()) org.setSenderEmail(senderEmail.trim());
         if (senderDisplayName != null && !senderDisplayName.isBlank()) org.setSenderDisplayName(senderDisplayName.trim());
         if (accountsEmail != null) org.setAccountsEmail(accountsEmail.isBlank() ? null : accountsEmail.trim());
+        if (replyToEmail != null) org.setReplyToEmail(replyToEmail.isBlank() ? null : replyToEmail.trim());
         if (companyAddress != null) org.setCompanyAddress(companyAddress.isBlank() ? null : companyAddress.trim());
         if (primaryErpSource != null) org.setPrimaryErpSource(primaryErpSource.isBlank() ? null : primaryErpSource.trim());
         if (erpTenantId != null) org.setErpTenantId(erpTenantId.isBlank() ? null : erpTenantId.trim());
