@@ -13,15 +13,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Resolves the "From" identity for an outbound mail.
  *
  * Lookup order (first hit wins):
- *  1. Currently-authenticated organisation → use {@link Organization#getSenderEmail()}.
- *  2. Customer record by erpCustomerId (= account number) → its org's senderEmail.
- *  3. Customer record by tinNumber → its org's senderEmail.
- *  4. Fallback to {@link MailerProperties#fromAddress()} + {@link MailerProperties#fromName()}.
+ *  1. Explicit organisation id supplied by the caller (e.g. the campaign's owning org on
+ *     async dispatch, where there is no SecurityContext) → its senderEmail.
+ *  2. Currently-authenticated organisation → use {@link Organization#getSenderEmail()}.
+ *  3. Customer record by erpCustomerId (= account number) → its org's senderEmail.
+ *  4. Customer record by tinNumber → its org's senderEmail.
+ *  5. Fallback to {@link MailerProperties#fromAddress()} + {@link MailerProperties#fromName()}.
  *
  * Note: when running under the platform's single Brevo account, the resolved email
  * must be a verified sender in Brevo or the API will reject the send.
@@ -53,6 +56,25 @@ public class BrevoSenderResolver {
      * @param tinNumber     the customer's TIN; nullable — used only if accountNumber misses
      */
     public Sender resolve(String accountNumber, String tinNumber) {
+        return resolve(null, accountNumber, tinNumber);
+    }
+
+    /**
+     * Resolve the sender, preferring an explicitly-known owning organisation.
+     *
+     * @param organizationId the org the mail is sent on behalf of; nullable
+     * @param accountNumber  the customer's account number (= erpCustomerId on CustomerContact); nullable
+     * @param tinNumber      the customer's TIN; nullable — used only if accountNumber misses
+     */
+    public Sender resolve(UUID organizationId, String accountNumber, String tinNumber) {
+        if (organizationId != null) {
+            Optional<Organization> explicit = orgs.findById(organizationId);
+            if (explicit.isPresent()) {
+                return toSender(explicit.get());
+            }
+            log.warn("Organisation {} not found while resolving sender — falling back", organizationId);
+        }
+
         Optional<Organization> fromAuth = currentOrg();
         if (fromAuth.isPresent()) {
             return toSender(fromAuth.get());

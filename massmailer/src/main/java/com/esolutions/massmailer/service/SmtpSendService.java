@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
 /**
@@ -100,7 +101,29 @@ public class SmtpSendService {
                                 ResolvedAttachment attachment,
                                 String customerAccountNumber,
                                 String customerTinNumber) throws MessagingException {
-        Sender from = senderResolver.resolve(customerAccountNumber, customerTinNumber);
+        return send(toEmail, toName, subject, htmlBody, invoiceNumber, attachment,
+                null, customerAccountNumber, customerTinNumber);
+    }
+
+    /**
+     * Send on behalf of a known organisation. Used by async/background paths (campaign
+     * dispatch, PEPPOL notifications) where no authenticated org is on the thread — the
+     * From/Reply-To are taken from that organisation's settings.
+     *
+     * @param organizationId owning org; nullable (falls back to auth / customer lookup)
+     */
+    @Retryable(
+            retryFor = MessagingException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 2.0)
+    )
+    public DeliveryResult send(String toEmail, String toName, String subject,
+                                String htmlBody, String invoiceNumber,
+                                ResolvedAttachment attachment,
+                                UUID organizationId,
+                                String customerAccountNumber,
+                                String customerTinNumber) throws MessagingException {
+        Sender from = senderResolver.resolve(organizationId, customerAccountNumber, customerTinNumber);
         try {
             rateLimiter.acquire();
             try {
@@ -133,9 +156,19 @@ public class SmtpSendService {
                                             ResolvedAttachment attachment,
                                             String customerAccountNumber,
                                             String customerTinNumber) {
+        return sendWithFallback(toEmail, toName, subject, htmlBody, invoiceNumber, attachment,
+                null, customerAccountNumber, customerTinNumber);
+    }
+
+    public DeliveryResult sendWithFallback(String toEmail, String toName, String subject,
+                                            String htmlBody, String invoiceNumber,
+                                            ResolvedAttachment attachment,
+                                            UUID organizationId,
+                                            String customerAccountNumber,
+                                            String customerTinNumber) {
         try {
             return send(toEmail, toName, subject, htmlBody, invoiceNumber, attachment,
-                    customerAccountNumber, customerTinNumber);
+                    organizationId, customerAccountNumber, customerTinNumber);
         } catch (MessagingException e) {
             return new DeliveryResult.Failed(toEmail, invoiceNumber,
                     e.getMessage(), isRetryable(e));

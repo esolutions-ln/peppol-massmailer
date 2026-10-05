@@ -76,6 +76,31 @@ class BrevoSenderResolverTest {
     }
 
     @Test
+    void explicitOrgWinsOverCustomerLookup() {
+        givenOrg(null, "accounts@acme.test");
+        UUID otherId = UUID.randomUUID();
+        Organization other = Organization.builder()
+                .id(otherId)
+                .senderEmail("billing@other.test")
+                .senderDisplayName("Other Co")
+                .accountsEmail("accounts@other.test")
+                .build();
+        when(orgs.findById(otherId)).thenReturn(Optional.of(other));
+
+        var sender = resolver.resolve(otherId, ACCOUNT, null);
+        assertThat(sender.email()).isEqualTo("billing@other.test");
+        assertThat(sender.name()).isEqualTo("Other Co");
+        assertThat(sender.replyTo()).isEqualTo("accounts@other.test");
+    }
+
+    @Test
+    void unknownExplicitOrgFallsBackToCustomerLookup() {
+        givenOrg(null, "accounts@acme.test");
+        var sender = resolver.resolve(UUID.randomUUID(), ACCOUNT, null);
+        assertThat(sender.email()).isEqualTo("noreply@acme.test");
+    }
+
+    @Test
     void noOrgUsesPlatformDefault() {
         var sender = resolver.resolve(null, null);
         assertThat(sender.email()).isEqualTo("no-reply@platform.test");

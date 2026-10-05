@@ -393,7 +393,7 @@ public class CampaignOrchestrator {
                 recipient.getEmail(), recipient.getName(),
                 campaign.getSubject(), html,
                 invoiceNum, pdf,
-                recipient.getAccountNumber(), null);
+                campaign.getOrganizationId(), recipient.getAccountNumber(), null);
     }
 
     /**
