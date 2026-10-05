@@ -32,6 +32,8 @@ source .env
 
 [ -n "${ADMIN_PASSWORD:-}" ] || error "ADMIN_PASSWORD must be set in .env"
 [ -n "${DB_PASS:-}" ]        || error "DB_PASS must be set in .env"
+[ "${BREVO_ENABLED:-true}" = "true" ] || error "BREVO_ENABLED must be true in production — SMTP is fallback only"
+[ -n "${BREVO_API_KEY:-}" ]  || error "BREVO_API_KEY must be set in .env"
 
 info "Checking required tools..."
 for cmd in java mvn node npm nginx psql openssl; do
@@ -84,10 +86,12 @@ cat > /etc/massmailer.env <<EOF
 DB_URL=jdbc:postgresql://${DB_HOST:-localhost}:${DB_PORT:-5432}/massmailer
 DB_USER=${DB_USER:-mailer}
 DB_PASS=${DB_PASS}
-SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-SMTP_PORT=${SMTP_PORT:-587}
-SMTP_USERNAME=${SMTP_USERNAME:-}
-SMTP_PASSWORD=${SMTP_PASSWORD:-}
+# Brevo transactional API — production mail transport (POST /v3/smtp/email)
+BREVO_ENABLED=true
+BREVO_API_KEY=${BREVO_API_KEY}
+# SMTP fallback (unused while BREVO_ENABLED=true)
+SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME:-}
+SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD:-}
 MAIL_FROM=${MAIL_FROM:-}
 MAIL_FROM_NAME=${MAIL_FROM_NAME:-eSolutions}
 APP_BASE_URL=${APP_BASE_URL:-https://${DOMAIN}}

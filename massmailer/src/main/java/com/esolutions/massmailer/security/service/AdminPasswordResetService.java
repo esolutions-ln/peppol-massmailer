@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import com.esolutions.massmailer.service.SystemMailSender;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -48,7 +49,7 @@ public class AdminPasswordResetService {
     private final AdminUserRepository adminUserRepository;
     private final AdminSessionTokenRepository tokenRepo;
     private final BCryptPasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
+    private final SystemMailSender mailSender;
     private final TemplateEngine templateEngine;
 
     @Value("${app.base-url:https://ap.invoicedirect.biz}")
@@ -61,7 +62,7 @@ public class AdminPasswordResetService {
                                       AdminUserRepository adminUserRepository,
                                       AdminSessionTokenRepository tokenRepo,
                                       BCryptPasswordEncoder passwordEncoder,
-                                      JavaMailSender mailSender,
+                                      SystemMailSender mailSender,
                                       TemplateEngine templateEngine) {
         this.resetRepo = resetRepo;
         this.adminUserRepository = adminUserRepository;
@@ -169,13 +170,8 @@ public class AdminPasswordResetService {
         String html = templateEngine.process("email/admin-password-reset", ctx);
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(user.getEmail());
-            helper.setSubject("Reset your InvoiceDirect admin password");
-            helper.setText(html, true);
-            mailSender.send(message);
+            mailSender.sendHtml(fromAddress, null, user.getEmail(), user.getDisplayName(),
+                    "Reset your InvoiceDirect admin password", html, null);
             log.info("Admin password reset email sent to {} for user {}", user.getEmail(), user.getUsername());
         } catch (MessagingException e) {
             log.error("Failed to send admin password reset email to {}: {}", user.getEmail(), e.getMessage());

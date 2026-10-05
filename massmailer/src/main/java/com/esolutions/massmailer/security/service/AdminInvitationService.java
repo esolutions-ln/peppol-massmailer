@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import com.esolutions.massmailer.service.SystemMailSender;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -31,7 +32,7 @@ import java.util.UUID;
  *
  * <p>Mirrors {@link com.esolutions.massmailer.invitation.service.InvitationService}
  * (PEPPOL customer invitations) — same token/expiry/status model, same email-sending
- * approach via {@link JavaMailSender} + Thymeleaf. Account creation itself delegates to
+ * approach via {@link SystemMailSender} (Brevo API in production) + Thymeleaf. Account creation itself delegates to
  * {@link AdminUserService#createUser} so both entry points (direct create, invite) share
  * one source of truth for password/uniqueness validation.
  */
@@ -46,7 +47,7 @@ public class AdminInvitationService {
 
     private final AdminInvitationRepository invitationRepo;
     private final AdminUserService adminUserService;
-    private final JavaMailSender mailSender;
+    private final SystemMailSender mailSender;
     private final TemplateEngine templateEngine;
 
     @Value("${app.base-url:https://ap.invoicedirect.biz}")
@@ -57,7 +58,7 @@ public class AdminInvitationService {
 
     public AdminInvitationService(AdminInvitationRepository invitationRepo,
                                    AdminUserService adminUserService,
-                                   JavaMailSender mailSender,
+                                   SystemMailSender mailSender,
                                    TemplateEngine templateEngine) {
         this.invitationRepo = invitationRepo;
         this.adminUserService = adminUserService;
@@ -72,7 +73,7 @@ public class AdminInvitationService {
      * <ol>
      *   <li>Cancel any existing PENDING invitation for the same email</li>
      *   <li>Generate token and persist AdminInvitation with status=PENDING</li>
-     *   <li>Send invitation email via JavaMailSender + Thymeleaf</li>
+     *   <li>Send invitation email via SystemMailSender + Thymeleaf</li>
      * </ol>
      */
     @Transactional
@@ -209,13 +210,8 @@ public class AdminInvitationService {
         String html = templateEngine.process("email/admin-invitation", ctx);
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(email);
-            helper.setSubject("You've been invited to InvoiceDirect as a platform admin");
-            helper.setText(html, true);
-            mailSender.send(message);
+            mailSender.sendHtml(fromAddress, null, email, displayName,
+                    "You've been invited to InvoiceDirect as a platform admin", html, null);
             log.info("Admin invitation email sent to {} (invited by {})", email, invitedByUsername);
         } catch (MessagingException e) {
             log.error("Failed to send admin invitation email to {}: {}", email, e.getMessage());

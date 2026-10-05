@@ -58,6 +58,16 @@ if [ -z "${ADMIN_PASSWORD:-}" ]; then
   exit 1
 fi
 
+# Production mail goes through the Brevo transactional API, not SMTP.
+if [ "${BREVO_ENABLED:-true}" != "true" ]; then
+  echo "ERROR: BREVO_ENABLED must be true in production (.env) — SMTP is fallback only."
+  exit 1
+fi
+if [ -z "${BREVO_API_KEY:-}" ]; then
+  echo "ERROR: BREVO_API_KEY must be set in .env"
+  exit 1
+fi
+
 # ── Step 1: Build application JAR ────────────────────────────────────────────
 echo ""
 echo "[1/4] Building application..."
