@@ -432,7 +432,8 @@ public class PeppolDeliveryService {
 
             smtpSendService.sendWithFallback(
                     buyer.getEmail(), buyer.getName(), subject, html,
-                    invoice.invoiceNumber(), attachment);
+                    invoice.invoiceNumber(), attachment,
+                    supplier.getId(), null, null);
 
             log.info("PEPPOL notification sent to unregistered buyer {} for invoice {}",
                     buyer.getEmail(), invoice.invoiceNumber());
