@@ -130,13 +130,14 @@ management:
       enabled: false
 
 springdoc:
-  # Swagger is OFF by default. Enable for dev with SWAGGER_ENABLED=true; never enable in prod.
+  # Swagger UI (/swagger-ui.html) and the spec (/v3/api-docs) are ON by default.
+  # Set SWAGGER_ENABLED=false to turn them off (they are publicly reachable without auth).
   api-docs:
     path: /v3/api-docs
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${SWAGGER_ENABLED:true}
   swagger-ui:
     path: /swagger-ui.html
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${SWAGGER_ENABLED:true}
     tags-sorter: alpha
     operations-sorter: method
     try-it-out-enabled: true
