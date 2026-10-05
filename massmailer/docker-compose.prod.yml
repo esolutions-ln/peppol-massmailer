@@ -37,7 +37,7 @@ services:
       RATE_LIMIT: ${RATE_LIMIT:-100}
       BATCH_SIZE: ${BATCH_SIZE:-50}
       HIBERNATE_DDL_AUTO: ${HIBERNATE_DDL_AUTO:-validate}
-      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
       MAX_PDF_BYTES: ${MAX_PDF_BYTES:-10485760}
 
       # ── Admin (required — app fails fast without these) ──

@@ -12,11 +12,11 @@ import java.net.http.HttpResponse;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * With SWAGGER_ENABLED=true the documented entry point /swagger-ui.html must redirect
- * to the UI, and the UI page and its OpenAPI spec must be reachable without auth.
+ * Swagger is on by default (no SWAGGER_ENABLED set): the documented entry point
+ * /swagger-ui.html must redirect to the UI, and the UI page and its OpenAPI spec
+ * must be reachable without auth.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"SWAGGER_ENABLED=true"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class SwaggerUiIntegrationTest {
 
     @LocalServerPort int port;

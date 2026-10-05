@@ -62,7 +62,7 @@ services:
       HIBERNATE_DDL_AUTO: ${HIBERNATE_DDL_AUTO:-validate}
 
       # ── Swagger — opt-in only ──
-      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
 
       # ── Google OAuth2 (only used if massmailer.gmail-oauth2.enabled=true) ──
       GOOGLE_OAUTH2_CREDENTIALS_PATH: ${GOOGLE_OAUTH2_CREDENTIALS_PATH:-/etc/mailer/google-oauth-credentials.json}
