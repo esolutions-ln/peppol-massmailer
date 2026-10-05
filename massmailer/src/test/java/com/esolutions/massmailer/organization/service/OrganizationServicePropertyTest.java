@@ -96,7 +96,7 @@ class OrganizationServicePropertyTest {
                     slug,
                     "sender@" + slug + ".com",
                     "Sender " + slug,
-                    null, null, null, null, null, null, null
+                    null, null, null, null, null, null, null, null
             );
             RegisterOrgResponse response = service.register(request);
             collectedApiKeys.add(response.apiKey());

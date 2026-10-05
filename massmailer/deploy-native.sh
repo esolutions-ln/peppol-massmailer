@@ -93,6 +93,7 @@ MAIL_FROM_NAME=${MAIL_FROM_NAME:-eSolutions}
 APP_BASE_URL=${APP_BASE_URL:-https://${DOMAIN}}
 RATE_LIMIT=${RATE_LIMIT:-10}
 BATCH_SIZE=${BATCH_SIZE:-50}
+SWAGGER_ENABLED=${SWAGGER_ENABLED:-false}
 ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
 GOOGLE_OAUTH2_CREDENTIALS_PATH=${CREDENTIALS_PATH}
@@ -224,6 +225,13 @@ server {
 
     location /webhooks/ {
         proxy_pass http://127.0.0.1:9199/webhooks/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Entry point advertised below; springdoc redirects it to /swagger-ui/index.html
+    location = /swagger-ui.html {
+        proxy_pass http://127.0.0.1:9199/swagger-ui.html;
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }

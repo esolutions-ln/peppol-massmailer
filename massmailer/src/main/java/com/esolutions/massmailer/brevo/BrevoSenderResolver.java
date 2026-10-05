@@ -106,8 +106,16 @@ public class BrevoSenderResolver {
                 ? o.getSenderEmail() : props.fromAddress();
         String name = (o.getSenderDisplayName() != null && !o.getSenderDisplayName().isBlank())
                 ? o.getSenderDisplayName() : props.fromName();
-        String replyTo = (o.getReplyToEmail() != null && !o.getReplyToEmail().isBlank())
-                ? o.getReplyToEmail() : email;
+        // Reply-To: explicit replyToEmail → accountsEmail (so customer replies reach the
+        // org's accounts desk instead of the no-reply sender) → senderEmail.
+        String replyTo = firstNonBlank(o.getReplyToEmail(), o.getAccountsEmail(), email);
         return new Sender(email, name, replyTo);
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        for (String c : candidates) {
+            if (c != null && !c.isBlank()) return c;
+        }
+        return null;
     }
 }

@@ -54,6 +54,7 @@ public class OrganizationDtos {
             @NotBlank @Email String senderEmail,
             @NotBlank String senderDisplayName,
             String accountsEmail,
+            @Email String replyToEmail,
             String companyAddress,
             String primaryErpSource,
             String erpTenantId,
