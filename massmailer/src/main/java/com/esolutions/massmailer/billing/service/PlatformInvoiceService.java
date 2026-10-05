@@ -10,6 +10,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.esolutions.massmailer.service.SystemMailSender;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,7 @@ import java.util.UUID;
  * organisation's accounts email address.
  *
  * <p>The service renders the {@code platform-invoice} Thymeleaf template,
- * sends it via the configured JavaMailSender, and transitions the
+ * sends it via SystemMailSender (Brevo API in production), and transitions the
  * {@link BillingPeriodSummary} from {@code CLOSED} → {@code INVOICED}.</p>
  *
  * <p>Designed to be called by {@link BillingScheduler} after period close,
@@ -45,13 +46,13 @@ public class PlatformInvoiceService {
             "Please remit payment to our accounts team at <a href=\"mailto:accounts@invoicedirect.biz\">"
             + "accounts@invoicedirect.biz</a>, quoting the invoice number above.";
 
-    private final JavaMailSender mailSender;
+    private final SystemMailSender mailSender;
     private final TemplateRenderService templateRenderer;
     private final OrganizationRepository orgRepo;
     private final BillingPeriodSummaryRepository summaryRepo;
     private final MailerProperties mailerProps;
 
-    public PlatformInvoiceService(JavaMailSender mailSender,
+    public PlatformInvoiceService(SystemMailSender mailSender,
                                    TemplateRenderService templateRenderer,
                                    OrganizationRepository orgRepo,
                                    BillingPeriodSummaryRepository summaryRepo,
@@ -155,24 +156,13 @@ public class PlatformInvoiceService {
     private void sendEmail(String recipientEmail, String orgName,
                            String invoiceNumber, String period, String htmlBody) {
         try {
-            var message = mailSender.createMimeMessage();
-            var helper = new MimeMessageHelper(message, false, "UTF-8");
-
-            helper.setFrom(new InternetAddress(
-                    mailerProps.fromAddress(),
-                    mailerProps.fromName(),
-                    "UTF-8"));
-            helper.setTo(new InternetAddress(recipientEmail, orgName, "UTF-8"));
-            helper.setSubject("InvoiceDirect Invoice " + invoiceNumber + " — " + period);
-            helper.setText(htmlBody, true);
-
             // Anti-reply headers — this is a system-generated billing notification
-            message.setHeader("X-Auto-Response-Suppress", "OOF, AutoReply");
-            message.setHeader("Auto-Submitted", "auto-generated");
-
-            mailSender.send(message);
-
-        } catch (MessagingException | UnsupportedEncodingException e) {
+            mailSender.sendHtml(mailerProps.fromAddress(), mailerProps.fromName(),
+                    recipientEmail, orgName,
+                    "InvoiceDirect Invoice " + invoiceNumber + " — " + period, htmlBody,
+                    Map.of("X-Auto-Response-Suppress", "OOF, AutoReply",
+                           "Auto-Submitted", "auto-generated"));
+        } catch (MessagingException e) {
             throw new RuntimeException(
                     "Failed to send platform invoice " + invoiceNumber + " to " + recipientEmail, e);
         }

@@ -217,6 +217,14 @@ public class SmtpSendService {
                         invoiceNumber, toEmail, ccEmails, messageId, attachmentSize, from.email());
             }
             return new DeliveryResult.Delivered(toEmail, invoiceNumber, messageId, attachmentSize);
+        } catch (BrevoEmailClient.BrevoApiException e) {
+            log.error("✗ Brevo rejected {} (invoice {}, from={}): {}",
+                    toEmail, invoiceNumber, from.email(), e.getMessage());
+            if (!e.retryable()) {
+                // 4xx (unverified sender, bad payload, bad key) — retrying won't help.
+                return new DeliveryResult.Failed(toEmail, invoiceNumber, e.getMessage(), false);
+            }
+            throw new MessagingException("Brevo send failed: " + e.getMessage(), e);
         } catch (IOException e) {
             log.error("✗ Brevo failure for {} (invoice {}): {}", toEmail, invoiceNumber, e.getMessage());
             // Map to MessagingException so @Retryable engages on transient errors.
@@ -313,6 +321,9 @@ public class SmtpSendService {
     }
 
     private boolean isRetryable(MessagingException e) {
+        if (e.getCause() instanceof BrevoEmailClient.BrevoApiException api) {
+            return api.retryable();
+        }
         String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
         return msg.contains("timeout") || msg.contains("connection")
                 || msg.contains("temporarily") || msg.contains("try again");

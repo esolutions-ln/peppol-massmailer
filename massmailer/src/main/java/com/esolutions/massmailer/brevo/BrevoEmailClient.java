@@ -81,6 +81,7 @@ public class BrevoEmailClient {
      * Send a transactional email via POST /v3/smtp/email.
      *
      * @return the messageId returned by Brevo
+     * @throws BrevoApiException on a non-2xx response (see {@link BrevoApiException#retryable()})
      */
     public String sendTransactional(SendRequest send) throws IOException, InterruptedException {
         String body = json.writeValueAsString(send);
@@ -90,7 +91,7 @@ public class BrevoEmailClient {
                 .build();
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (resp.statusCode() / 100 != 2) {
-            throw new IOException("Brevo /smtp/email failed: " + resp.statusCode() + " " + resp.body());
+            throw new BrevoApiException(resp.statusCode(), resp.body());
         }
         SendResponse parsed = json.readValue(resp.body(), SendResponse.class);
         return parsed.messageId;
@@ -115,6 +116,24 @@ public class BrevoEmailClient {
         return new Attachment(Base64.getEncoder().encodeToString(bytes), a.fileName());
     }
 
+    /**
+     * Non-2xx response from the Brevo API. 429 (rate limit) and 5xx are transient;
+     * any other 4xx (bad sender, invalid payload, unauthorised key) will fail the
+     * same way on retry.
+     */
+    public static final class BrevoApiException extends IOException {
+        private final int status;
+
+        public BrevoApiException(int status, String body) {
+            super("Brevo /smtp/email failed: " + status + " " + body);
+            this.status = status;
+        }
+
+        public int status() { return status; }
+
+        public boolean retryable() { return status == 429 || status >= 500; }
+    }
+
     // ── DTOs ──
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -128,7 +147,7 @@ public class BrevoEmailClient {
             Contact sender,
             List<Contact> to,
             List<Contact> cc,
-            String replyTo,
+            Contact replyTo,
             String subject,
             String htmlContent,
             String textContent,
@@ -140,7 +159,7 @@ public class BrevoEmailClient {
             private Contact sender;
             private final List<Contact> to = new ArrayList<>();
             private final List<Contact> ccList = new ArrayList<>();
-            private String replyTo;
+            private Contact replyTo;
             private String subject;
             private String htmlContent;
             private List<Attachment> attachments;
@@ -150,7 +169,11 @@ public class BrevoEmailClient {
             public Builder sender(String email, String name) { this.sender = new Contact(email, name); return this; }
             public Builder to(String email, String name) { this.to.add(new Contact(email, name)); return this; }
             public Builder cc(String email, String name) { this.ccList.add(new Contact(email, name)); return this; }
-            public Builder replyTo(String email) { this.replyTo = email; return this; }
+            /** Brevo expects {@code replyTo} as an object: {"email": ..., "name": ...}. */
+            public Builder replyTo(String email) {
+                this.replyTo = (email == null || email.isBlank()) ? null : new Contact(email, null);
+                return this;
+            }
             public Builder subject(String s) { this.subject = s; return this; }
             public Builder html(String html) { this.htmlContent = html; return this; }
             public Builder attachment(Attachment a) {

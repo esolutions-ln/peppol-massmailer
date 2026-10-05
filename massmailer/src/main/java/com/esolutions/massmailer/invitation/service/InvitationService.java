@@ -23,6 +23,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import com.esolutions.massmailer.brevo.BrevoEmailClient;
+import com.esolutions.massmailer.service.SystemMailSender;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -62,7 +64,7 @@ public class InvitationService {
     private final PeppolParticipantLinkRepository participantLinkRepo;
     private final AccessPointRepository accessPointRepo;
     private final OrganizationRepository organizationRepo;
-    private final JavaMailSender mailSender;
+    private final SystemMailSender mailSender;
     private final TemplateEngine templateEngine;
 
     @Value("${app.base-url:https://ap.invoicedirect.biz}")
@@ -77,7 +79,7 @@ public class InvitationService {
                               PeppolParticipantLinkRepository participantLinkRepo,
                               AccessPointRepository accessPointRepo,
                               OrganizationRepository organizationRepo,
-                              JavaMailSender mailSender,
+                              SystemMailSender mailSender,
                               TemplateEngine templateEngine) {
         this.invitationRepo = invitationRepo;
         this.customerContactRepo = customerContactRepo;
@@ -103,7 +105,7 @@ public class InvitationService {
         this.participantLinkRepo = participantLinkRepo;
         this.accessPointRepo = null;
         this.organizationRepo = organizationRepo;
-        this.mailSender = mailSender;
+        this.mailSender = new SystemMailSender(mailSender, (BrevoEmailClient) null);
         this.templateEngine = templateEngine;
         this.baseUrl = baseUrl;
         this.fromAddress = fromAddress;
@@ -125,7 +127,7 @@ public class InvitationService {
         this.participantLinkRepo = participantLinkRepo;
         this.accessPointRepo = accessPointRepo;
         this.organizationRepo = organizationRepo;
-        this.mailSender = mailSender;
+        this.mailSender = new SystemMailSender(mailSender, (BrevoEmailClient) null);
         this.templateEngine = templateEngine;
         this.baseUrl = baseUrl;
         this.fromAddress = fromAddress;
@@ -140,7 +142,7 @@ public class InvitationService {
      *   <li>Verify no active PeppolParticipantLink exists; throw 409 if found</li>
      *   <li>Cancel any existing PENDING invitation for the same org+customer</li>
      *   <li>Generate token and persist PeppolInvitation with status=PENDING</li>
-     *   <li>Send invitation email via JavaMailSender + Thymeleaf</li>
+     *   <li>Send invitation email via SystemMailSender + Thymeleaf</li>
      * </ol>
      *
      * @param orgId         the sending organisation's UUID
@@ -438,13 +440,8 @@ public class InvitationService {
         String html = templateEngine.process("email/peppol-invitation-complete", ctx);
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(org.getSenderEmail());
-            helper.setSubject("PEPPOL registration completed by " + customerEmail);
-            helper.setText(html, true);
-            mailSender.send(message);
+            mailSender.sendHtml(fromAddress, null, org.getSenderEmail(), org.getName(),
+                    "PEPPOL registration completed by " + customerEmail, html, null);
             log.info("PEPPOL completion notification sent to {} for customer {}",
                     org.getSenderEmail(), customerEmail);
         } catch (MessagingException e) {
@@ -465,13 +462,8 @@ public class InvitationService {
         String html = templateEngine.process("email/peppol-invitation", ctx);
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(customerEmail);
-            helper.setSubject("You've been invited to register on PEPPOL by " + org.getName());
-            helper.setText(html, true);
-            mailSender.send(message);
+            mailSender.sendHtml(fromAddress, null, customerEmail, null,
+                    "You've been invited to register on PEPPOL by " + org.getName(), html, null);
             log.info("PEPPOL invitation email sent to {} for org {}", customerEmail, org.getName());
         } catch (MessagingException e) {
             log.error("Failed to send PEPPOL invitation email to {}: {}", customerEmail, e.getMessage());

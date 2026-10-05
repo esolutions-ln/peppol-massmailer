@@ -21,8 +21,9 @@ spring:
     host: ${SPRING_MAIL_HOST:smtp-relay.brevo.com}
     port: ${SPRING_MAIL_PORT:587}
     username: ${SPRING_MAIL_USERNAME:af02a6001@smtp-brevo.com}
-    # No default — must be set in env (.env / k8s secret). Startup fails fast otherwise.
-    password: ${SPRING_MAIL_PASSWORD:?SPRING_MAIL_PASSWORD environment variable is required}
+    # SMTP is only the fallback transport — production sends via the Brevo API
+    # (massmailer.brevo.enabled=true). Required only when Brevo is disabled.
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -73,8 +74,10 @@ massmailer:
   max-pdf-bytes: ${MAX_PDF_BYTES:10485760}   # 10 MB
   gmail-oauth2:
     enabled: false
-  # Brevo (Sendinblue) transactional email — when enabled, outbound mail is
-  # delivered via Brevo's HTTPS API instead of Spring's JavaMailSender.
+  # Brevo transactional email API (POST https://api.brevo.com/v3/smtp/email).
+  # Production MUST run with BREVO_ENABLED=true — all outbound mail (invoices and
+  # platform mail) then goes over HTTPS instead of SMTP. Every From address
+  # (MAIL_FROM and each organisation's senderEmail) must be a verified Brevo sender.
   brevo:
     enabled: ${BREVO_ENABLED:false}
     api-key: ${BREVO_API_KEY:}
