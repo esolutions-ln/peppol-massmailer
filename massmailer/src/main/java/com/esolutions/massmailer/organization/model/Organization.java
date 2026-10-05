@@ -62,7 +62,7 @@ public class Organization {
     @Column(nullable = false)
     private String senderDisplayName;
 
-    /** Reply-to address (typically same as senderEmail for no-reply) */
+    /** Reply-to address; when blank, outbound mail falls back to accountsEmail, then senderEmail */
     private String replyToEmail;
 
     // ── Branding ──
