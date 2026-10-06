@@ -81,14 +81,46 @@ Every From address (each org's `senderEmail` and `MAIL_FROM`) must be a
 **verified sender or on an authenticated domain in Brevo** (Reply-To needs no
 verification). Beware: with an unverified sender Brevo still returns **2xx + a
 messageId**, then drops the mail asynchronously with an `error` event
-("sender … is not valid"). The app therefore records it as delivered — check
-`GET /v3/smtp/statistics/events?messageId=…` (or the Brevo Transactional logs)
-to confirm real delivery. Brevo also enforces an **authorised-IP allowlist**:
+("sender … is not valid"). The send path records it as `SENT`; delivery events
+(below) later correct it to `FAILED`. Brevo also enforces an **authorised-IP allowlist**:
 the calling server's egress IP must be added under Security → Authorised IPs,
 or every API call returns `401 unauthorized`.
 
 Live smoke test (sends one real email; skipped unless `BREVO_LIVE_TEST_TO` is set):
 `BrevoLiveSendTest` — see its Javadoc for the env vars.
+
+### Delivery events (bounces / blocks / rejected senders)
+
+`brevo/BrevoDeliveryEventService` applies Brevo events to campaign recipients,
+matched by the `messageId` stored at send time (`MailRecipient.messageId`). Two
+sources feed it, and handling is idempotent:
+
+- **Webhook** `POST /webhooks/brevo/transactional` (`BrevoWebhookController`) —
+  auth is `Authorization: Bearer $BREVO_WEBHOOK_TOKEN` (or `?token=`); with no token
+  configured it returns 503 for everything. Register it once per environment with
+  `scripts/register-brevo-webhook.sh` (reads `massmailer/.env`). Accepts single or
+  batched (array) payloads.
+- **Reconciler** `BrevoEventReconciler` — every `BREVO_RECONCILE_INTERVAL` (default
+  15 min) pulls `error`, `blocked`, `hardBounces`, `invalid` from
+  `GET /v3/smtp/statistics/events` (last 2 days). Required because Brevo **cannot**
+  push `error` events via webhook (subscribable: sent, request, delivered,
+  hardBounce, softBounce, blocked, spam, invalid, deferred, click, opened,
+  uniqueOpened, unsubscribed).
+
+Effects: permanent failures (`hard_bounce`/`hardBounces`, `invalid`/`invalid_email`,
+`blocked`, `error`) move a `SENT` recipient to `FAILED` with `errorMessage =
+"Brevo <event>: <reason>"`, set `retryCount = maxRetries` (so campaign retry skips
+it), and call `MailCampaign.recordLateFailure()` (sent−1, failed+1, COMPLETED →
+PARTIALLY_FAILED). `delivered`, soft bounces/deferred and spam/unsubscribed don't
+change status (complaints are logged at WARN). Single sends and platform mail
+aren't persisted, so their events are only logged.
+
+Campaign recipients are committed only when the whole dispatch transaction ends,
+so a webhook failure for an unknown messageId is retried in-memory (15 s → 20 min).
+Usage already metered as delivered is **not** reversed on a late failure.
+No schema changes: there is no migration tool and prod runs
+`HIBERNATE_DDL_AUTO=validate`, so new tables/columns need manual SQL first — and
+don't add `RecipientStatus` values (Hibernate 6 may have created a CHECK constraint).
 
 ## Deployment
 
@@ -99,7 +131,10 @@ Live smoke test (sends one real email; skipped unless `BREVO_LIVE_TEST_TO` is se
   `massmailer/deploy-native.sh` (systemd + nginx, run as root).
 - Secrets live in `massmailer/.env` (git-ignored; template `.env.example`).
   Required: `ADMIN_PASSWORD`, `WEBHOOK_SECRET` (≥32 chars), DB creds,
-  `BREVO_API_KEY`, `MAIL_FROM`.
+  `BREVO_API_KEY`, `MAIL_FROM`. Recommended: `BREVO_WEBHOOK_TOKEN`
+  (`openssl rand -hex 32`), then run `scripts/register-brevo-webhook.sh` once.
+  Values containing spaces (e.g. `MAIL_FROM_NAME`) must be quoted — the deploy
+  scripts `source .env`.
 
 ## Conventions
 

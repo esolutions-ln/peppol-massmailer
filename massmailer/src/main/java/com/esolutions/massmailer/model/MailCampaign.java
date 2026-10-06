@@ -84,4 +84,17 @@ public class MailCampaign {
     public void incrementSent() { this.sentCount++; }
     public void incrementFailed() { this.failedCount++; }
     public void incrementSkipped() { this.skippedCount++; }
+
+    /**
+     * A recipient counted as sent was later reported undeliverable by the mail
+     * provider (bounce / block / rejected sender). Moves it from sent to failed and
+     * downgrades a completed campaign to {@link CampaignStatus#PARTIALLY_FAILED}.
+     */
+    public void recordLateFailure() {
+        if (this.sentCount > 0) this.sentCount--;
+        this.failedCount++;
+        if (this.status == CampaignStatus.COMPLETED) {
+            this.status = CampaignStatus.PARTIALLY_FAILED;
+        }
+    }
 }

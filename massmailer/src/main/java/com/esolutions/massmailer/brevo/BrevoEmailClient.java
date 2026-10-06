@@ -97,6 +97,26 @@ public class BrevoEmailClient {
         return parsed.messageId;
     }
 
+    /**
+     * Calls GET /v3/smtp/statistics/events for one event type over the last {@code days}.
+     *
+     * @param event Brevo statistics event filter, e.g. {@code error}, {@code blocked},
+     *              {@code hardBounces}, {@code invalid}
+     * @return the {@code events} array (possibly empty)
+     */
+    public com.fasterxml.jackson.databind.JsonNode getEvents(String event, int days)
+            throws IOException, InterruptedException {
+        String query = "?event=" + java.net.URLEncoder.encode(event, StandardCharsets.UTF_8)
+                + "&days=" + days + "&limit=2500&sort=desc";
+        HttpRequest req = baseRequest("/smtp/statistics/events" + query).GET().build();
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (resp.statusCode() / 100 != 2) {
+            throw new BrevoApiException(resp.statusCode(), resp.body());
+        }
+        var events = json.readTree(resp.body()).get("events");
+        return events != null ? events : json.createArrayNode();
+    }
+
     private HttpRequest.Builder baseRequest(String path) {
         return HttpRequest.newBuilder()
                 .uri(URI.create(cfg.baseUrl() + path))
