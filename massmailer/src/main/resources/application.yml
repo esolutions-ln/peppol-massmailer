@@ -83,6 +83,12 @@ massmailer:
     api-key: ${BREVO_API_KEY:}
     base-url: ${BREVO_BASE_URL:https://api.brevo.com/v3}
     timeout-seconds: ${BREVO_TIMEOUT_SECONDS:30}
+    # Shared secret for POST /webhooks/brevo/transactional (Bearer header or ?token=).
+    # Blank = webhook rejects all calls; the reconciler below still catches failures.
+    webhook-token: ${BREVO_WEBHOOK_TOKEN:}
+    # Pulls error/blocked/bounce events from Brevo's statistics API (webhooks can't
+    # deliver "error", e.g. an unverified sender).
+    reconcile-interval: ${BREVO_RECONCILE_INTERVAL:PT15M}
 
 webhook:
   # No default — production must provide a strong secret (>=32 chars).

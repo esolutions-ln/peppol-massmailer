@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.repository.query.Param;
 
@@ -21,6 +22,9 @@ public interface RecipientRepository extends JpaRepository<MailRecipient, UUID> 
     List<MailRecipient> findRetryable(UUID campaignId, int maxRetries);
 
     long countByCampaignIdAndDeliveryStatus(UUID campaignId, RecipientStatus status);
+
+    /** Brevo delivery events reference the messageId returned at send time. */
+    Optional<MailRecipient> findFirstByMessageId(String messageId);
 
     // ── Org-scoped invoice queries for the dashboard ──
     @Query("SELECT r FROM MailRecipient r WHERE r.campaign.organizationId = :orgId ORDER BY r.sentAt DESC NULLS LAST")

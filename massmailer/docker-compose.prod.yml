@@ -22,6 +22,8 @@ services:
       # All outbound mail goes to POST https://api.brevo.com/v3/smtp/email.
       BREVO_ENABLED: ${BREVO_ENABLED:-true}
       BREVO_API_KEY: ${BREVO_API_KEY:?BREVO_API_KEY must be set in .env}
+      # Shared secret for the delivery-event webhook (scripts/register-brevo-webhook.sh)
+      BREVO_WEBHOOK_TOKEN: ${BREVO_WEBHOOK_TOKEN:-}
 
       # ── SMTP (fallback only — unused while BREVO_ENABLED=true) ──
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
