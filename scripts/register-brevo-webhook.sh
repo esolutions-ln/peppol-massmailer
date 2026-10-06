@@ -34,8 +34,25 @@ API="${BREVO_BASE_URL:-https://api.brevo.com/v3}"
 [ -n "$BREVO_API_KEY" ]       || { echo "ERROR: BREVO_API_KEY not set in $ENV_FILE"; exit 1; }
 [ -n "$BREVO_WEBHOOK_TOKEN" ] || { echo "ERROR: BREVO_WEBHOOK_TOKEN not set in $ENV_FILE (add: BREVO_WEBHOOK_TOKEN=\$(openssl rand -hex 32))"; exit 1; }
 
-existing=$(curl -fsS "$API/webhooks?type=transactional" \
-  -H "accept: application/json" -H "api-key: $BREVO_API_KEY")
+# brevo METHOD PATH [JSON] — prints the response body; on a non-2xx status shows
+# Brevo's error message (e.g. 400 validation detail, 401 unauthorised IP) and exits.
+brevo() {
+  local method="$1" path="$2" data="${3:-}" out status body
+  local args=(-sS -X "$method" "$API$path" -w $'\n%{http_code}'
+              -H "accept: application/json" -H "api-key: $BREVO_API_KEY")
+  [ -n "$data" ] && args+=(-H "content-type: application/json" --data "$data")
+  out=$(curl "${args[@]}")
+  status="${out##*$'\n'}"
+  body="${out%$'\n'*}"
+  if [ "${status:0:1}" != "2" ]; then
+    echo "ERROR: Brevo $method $path returned HTTP $status:" >&2
+    echo "$body" >&2
+    exit 1
+  fi
+  printf '%s' "$body"
+}
+
+existing=$(brevo GET "/webhooks?type=transactional")
 if echo "$existing" | grep -q "\"url\":\"$URL\""; then
   echo "A Brevo transactional webhook for $URL already exists — nothing to do."
   echo "(Delete it in Brevo → Transactional → Settings → Webhooks to re-register.)"
@@ -54,9 +71,5 @@ payload=$(cat <<JSON
 JSON
 )
 
-curl -fsS -X POST "$API/webhooks" \
-  -H "accept: application/json" -H "content-type: application/json" \
-  -H "api-key: $BREVO_API_KEY" \
-  --data "$payload"
-echo
-echo "Registered Brevo webhook → $URL"
+created=$(brevo POST "/webhooks" "$payload")
+echo "Registered Brevo webhook → $URL  $created"
