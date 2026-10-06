@@ -15,14 +15,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT/massmailer/.env}"
 if [ -f "$ENV_FILE" ]; then
+  [ -r "$ENV_FILE" ] || { echo "ERROR: $ENV_FILE is not readable by $(id -un) — run with sudo"; exit 1; }
+  echo "Using env file: $ENV_FILE"
   set -a; source "$ENV_FILE"; set +a
+elif [ -z "${BREVO_API_KEY:-}" ]; then
+  echo "ERROR: env file not found: $ENV_FILE"
+  echo "       Run from the repo checkout, or point at it: ENV_FILE=/path/to/.env $0"
+  exit 1
 fi
+
+# Tolerate .env files saved with Windows (CRLF) line endings.
+BREVO_API_KEY="${BREVO_API_KEY:-}";             BREVO_API_KEY="${BREVO_API_KEY%$'\r'}"
+BREVO_WEBHOOK_TOKEN="${BREVO_WEBHOOK_TOKEN:-}"; BREVO_WEBHOOK_TOKEN="${BREVO_WEBHOOK_TOKEN%$'\r'}"
 
 URL="${1:-https://ap.invoicedirect.biz/webhooks/brevo/transactional}"
 API="${BREVO_BASE_URL:-https://api.brevo.com/v3}"
 
-[ -n "${BREVO_API_KEY:-}" ]       || { echo "ERROR: BREVO_API_KEY not set"; exit 1; }
-[ -n "${BREVO_WEBHOOK_TOKEN:-}" ] || { echo "ERROR: BREVO_WEBHOOK_TOKEN not set (generate: openssl rand -hex 32)"; exit 1; }
+[ -n "$BREVO_API_KEY" ]       || { echo "ERROR: BREVO_API_KEY not set in $ENV_FILE"; exit 1; }
+[ -n "$BREVO_WEBHOOK_TOKEN" ] || { echo "ERROR: BREVO_WEBHOOK_TOKEN not set in $ENV_FILE (add: BREVO_WEBHOOK_TOKEN=\$(openssl rand -hex 32))"; exit 1; }
 
 existing=$(curl -fsS "$API/webhooks?type=transactional" \
   -H "accept: application/json" -H "api-key: $BREVO_API_KEY")
