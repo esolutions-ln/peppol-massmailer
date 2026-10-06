@@ -67,6 +67,10 @@ public class CampaignController {
 
                     **Fiscal fields**: `fiscalDeviceSerialNumber`, `fiscalDayNumber`, `globalInvoiceCounter`, \
                     `verificationCode`, and `qrCodeUrl` are rendered in the email body for ZIMRA compliance.
+
+                    **Sender**: emails are sent via the Brevo API from the campaign organisation's \
+                    `senderEmail` (verified Brevo sender), with Reply-To `replyToEmail` → `accountsEmail` → \
+                    `senderEmail` — also during asynchronous dispatch.
                     """
     )
     @ApiResponses({
@@ -231,6 +235,12 @@ public class CampaignController {
 
                     **Status values**: `CREATED`, `QUEUED`, `IN_PROGRESS`, `COMPLETED`, \
                     `PARTIALLY_FAILED`, `FAILED`, `CANCELLED`
+
+                    **Counts can change after completion.** `sent` counts emails accepted by \
+                    Brevo. When Brevo later reports a hard bounce, invalid address, block, or \
+                    rejected (unverified) sender — via webhook or the 15-minute reconciliation — \
+                    that recipient moves from `sent` to `failed` and a `COMPLETED` campaign \
+                    becomes `PARTIALLY_FAILED`. Keep polling if you need final delivery outcomes.
                     """
     )
     @ApiResponses({
@@ -315,14 +325,16 @@ public class CampaignController {
                     asynchronously — poll the campaign status endpoint to track progress.
 
                     **Common failure reasons that benefit from retry:**
-                    - SMTP connection timeout (transient)
-                    - Rate limit exceeded at provider (transient)
-                    - Temporary DNS resolution failure
+                    - Brevo rate limiting (HTTP 429) or Brevo server errors (5xx)
+                    - Network timeout reaching the Brevo API
 
                     **Failures that will NOT succeed on retry:**
                     - Invalid recipient email address
                     - Missing or corrupt PDF attachment
-                    - Permanent SMTP rejection (550 errors)
+                    - Brevo request rejections (400/401)
+                    - Hard bounces, blocks, invalid addresses and rejected (unverified) senders \
+                      reported later by Brevo — excluded from retry automatically \
+                      (fix the address or verify the sender in Brevo, then send again)
                     """
     )
     @ApiResponses({

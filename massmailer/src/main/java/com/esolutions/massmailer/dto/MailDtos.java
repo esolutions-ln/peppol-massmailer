@@ -294,7 +294,8 @@ public final class MailDtos {
     @Schema(description = "Single invoice email delivery result")
     public record SingleMailResponse(
 
-            @Schema(description = "Delivery status: delivered, failed, or skipped", example = "delivered")
+            @Schema(description = "Delivery status: delivered (accepted by Brevo), failed, or skipped",
+                    example = "delivered")
             String status,
 
             @Schema(description = "Recipient email address", example = "customer@acmecorp.co.zw")
@@ -303,12 +304,13 @@ public final class MailDtos {
             @Schema(description = "Invoice number for correlation", example = "INV-2026-0042")
             String invoiceNumber,
 
-            @Schema(description = "SMTP message ID (present only on success)",
-                    example = "<abc123@smtp.gmail.com>", nullable = true)
+            @Schema(description = "Brevo message ID (present only on success) — use it to look up the "
+                    + "message in Brevo's transactional logs",
+                    example = "<202610060825.58962143428@smtp-relay.mailin.fr>", nullable = true)
             String messageId,
 
             @Schema(description = "Error message (present only on failure)", nullable = true,
-                    example = "Could not connect to SMTP host: Connection timed out")
+                    example = "Brevo send failed: Brevo /smtp/email failed: 503 Service Unavailable")
             String error,
 
             @Schema(description = "Whether the failure is transient and worth retrying", example = "true")
