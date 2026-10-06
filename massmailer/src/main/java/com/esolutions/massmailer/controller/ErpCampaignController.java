@@ -115,6 +115,15 @@ public class ErpCampaignController {
                     | `DYNAMICS_365` | D365 OData → SalesInvoiceHeadersV2 | Document Management |
                     | `ODOO` | Odoo JSON-RPC → account.move | `/report/pdf/account.report_invoice/{id}` |
                     | `GENERIC_API` | No ERP fetch — use `/api/v1/erp/dispatch/upload` instead | n/a |
+
+                    ## Sender Identity
+
+                    Emails are sent via the Brevo API on behalf of `organizationId`: `From` is \
+                    that organisation's `senderEmail` / `senderDisplayName` (must be a verified \
+                    Brevo sender) and `Reply-To` is `replyToEmail` → `accountsEmail` → `senderEmail`. \
+                    This holds even though dispatch runs asynchronously. Poll \
+                    `GET /api/v1/campaigns/{id}` for results — recipients can move from `sent` \
+                    to `failed` when Brevo reports bounces or a rejected sender.
                     """
     )
     @ApiResponses({
@@ -213,6 +222,15 @@ public class ErpCampaignController {
 
                     **Before dispatch**, every recipient is upserted into the customer
                     contact registry under the specified organization.
+
+                    ## Sender Identity
+
+                    Emails are sent via the Brevo API on behalf of `organizationId`: `From` is \
+                    that organisation's `senderEmail` / `senderDisplayName` (must be a verified \
+                    Brevo sender) and `Reply-To` is `replyToEmail` → `accountsEmail` → `senderEmail`. \
+                    This holds even though dispatch runs asynchronously. Poll \
+                    `GET /api/v1/campaigns/{id}` for results — recipients can move from `sent` \
+                    to `failed` when Brevo reports bounces or a rejected sender.
 
                     ## Request Parts
 

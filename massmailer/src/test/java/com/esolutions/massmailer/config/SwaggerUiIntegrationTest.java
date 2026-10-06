@@ -44,4 +44,17 @@ class SwaggerUiIntegrationTest {
         assertThat(spec.statusCode()).isEqualTo(200);
         assertThat(spec.body()).contains("\"openapi\"");
     }
+
+    @Test
+    void mailerSpecDocumentsBrevoDeliveryAndWebhook() throws Exception {
+        var spec = get("/v3/api-docs/mailer-pdf");
+        assertThat(spec.statusCode()).isEqualTo(200);
+        assertThat(spec.body())
+                .contains("\"version\":\"1.1.0\"")
+                .contains("Email Delivery (Brevo)")
+                .contains("/webhooks/brevo/transactional")
+                .contains("BrevoWebhookToken")
+                .contains("Brevo Webhooks")
+                .doesNotContain("smtp.gmail.com");
+    }
 }

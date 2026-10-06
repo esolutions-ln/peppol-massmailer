@@ -51,9 +51,12 @@ public class OrganizationDtos {
             @Valid OrgUserRequest user,
             @NotBlank String name,
             @NotBlank String slug,
+            @io.swagger.v3.oas.annotations.media.Schema(description = "Email From address. Must be a verified sender (or on an authenticated domain) in Brevo, otherwise Brevo drops the mail", example = "billing@acme.co.zw")
             @NotBlank @Email String senderEmail,
             @NotBlank String senderDisplayName,
+            @io.swagger.v3.oas.annotations.media.Schema(description = "Accounts desk address. Used as Reply-To when replyToEmail is blank", example = "accounts@acme.co.zw")
             String accountsEmail,
+            @io.swagger.v3.oas.annotations.media.Schema(description = "Explicit Reply-To for invoice emails; blank falls back to accountsEmail, then senderEmail. No Brevo verification needed", example = "help@acme.co.zw")
             @Email String replyToEmail,
             String companyAddress,
             String primaryErpSource,

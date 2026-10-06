@@ -119,12 +119,23 @@ public class SingleMailController {
                     - `globalInvoiceCounter` — sequential invoice counter on the device
                     - `verificationCode` — code for online verification
                     - `qrCodeUrl` — URL to the ZIMRA verification QR image
+
+                    ## Sender & Delivery
+
+                    Sent via the Brevo transactional API. `From` is your organisation's \
+                    `senderEmail` (must be a verified Brevo sender); `Reply-To` is its \
+                    `replyToEmail`, else `accountsEmail`, else `senderEmail`.
+
+                    `"status": "delivered"` means **Brevo accepted** the message and returned \
+                    a `messageId`; it does not guarantee inbox delivery. A rejected sender, \
+                    hard bounce, or block is reported by Brevo afterwards (visible in Brevo's \
+                    transactional logs for that `messageId`).
                     """
     )
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Invoice email delivered successfully",
+                    description = "Accepted by Brevo for delivery (messageId returned)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = SingleMailResponse.class),
@@ -135,7 +146,7 @@ public class SingleMailController {
                                               "status": "delivered",
                                               "recipient": "customer@acmecorp.co.zw",
                                               "invoiceNumber": "INV-2026-0042",
-                                              "messageId": "<abc123@smtp.gmail.com>",
+                                              "messageId": "<202610060825.58962143428@smtp-relay.mailin.fr>",
                                               "error": null,
                                               "retryable": false
                                             }
@@ -181,23 +192,40 @@ public class SingleMailController {
             ),
             @ApiResponse(
                     responseCode = "502",
-                    description = "SMTP delivery failure (may be retryable)",
+                    description = "Mail provider (Brevo) refused the request or was unavailable. "
+                            + "`retryable: true` for rate limiting (429) and Brevo server errors (5xx); "
+                            + "`false` for permanent rejections (400/401, e.g. invalid payload or API key).",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = SingleMailResponse.class),
-                            examples = @ExampleObject(
-                                    name = "SMTP Timeout",
-                                    value = """
-                                            {
-                                              "status": "failed",
-                                              "recipient": "customer@acmecorp.co.zw",
-                                              "invoiceNumber": "INV-2026-0042",
-                                              "messageId": null,
-                                              "error": "Could not connect to SMTP host: Connection timed out",
-                                              "retryable": true
-                                            }
-                                            """
-                            )
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Brevo unavailable (retryable)",
+                                            value = """
+                                                    {
+                                                      "status": "failed",
+                                                      "recipient": "customer@acmecorp.co.zw",
+                                                      "invoiceNumber": "INV-2026-0042",
+                                                      "messageId": null,
+                                                      "error": "Brevo send failed: Brevo /smtp/email failed: 503 Service Unavailable",
+                                                      "retryable": true
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "Brevo rejected request (permanent)",
+                                            value = """
+                                                    {
+                                                      "status": "failed",
+                                                      "recipient": "customer@acmecorp.co.zw",
+                                                      "invoiceNumber": "INV-2026-0042",
+                                                      "messageId": null,
+                                                      "error": "Brevo /smtp/email failed: 400 invalid_parameter: email is not valid in to",
+                                                      "retryable": false
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             )
     })
@@ -369,16 +397,19 @@ public class SingleMailController {
                     "invoiceNumber":"INV-2026-0042","totalAmount":1250.00,"currency":"USD",\
                     "variables":{"companyName":"eSolutions"}}'
                     ```
+
+                    Sender, Reply-To and delivery semantics are the same as \
+                    `POST /api/v1/mail/invoice` (Brevo API; `From` = organisation `senderEmail`).
                     """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Invoice email delivered",
+            @ApiResponse(responseCode = "200", description = "Accepted by Brevo for delivery (messageId returned)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = SingleMailResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid PDF or metadata",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = SingleMailResponse.class))),
-            @ApiResponse(responseCode = "502", description = "SMTP delivery failure",
+            @ApiResponse(responseCode = "502", description = "Mail provider (Brevo) refused the request or was unavailable",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = SingleMailResponse.class)))
     })

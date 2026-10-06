@@ -52,7 +52,8 @@ public class OpenApiConfig {
             "com.esolutions.massmailer.organization.controller",       // Organization Registry
             "com.esolutions.massmailer.customer.controller",           // Customer Registry
             "com.esolutions.massmailer.billing.controller",            // Billing & Metering
-            "com.esolutions.massmailer.security"                        // Admin Auth + Admin Users
+            "com.esolutions.massmailer.security",                       // Admin Auth + Admin Users
+            "com.esolutions.massmailer.brevo"                           // Brevo delivery-event webhook
     };
 
     private static final String[] PEPPOL_PACKAGES = {
@@ -76,10 +77,39 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("eSolutions Fiscalised Invoice Mass Mailer API")
-                        .version("1.0.0")
+                        .version("1.1.0")
                         .description("""
                                 Production-grade REST API for mass-mailing fiscalised invoice PDFs \
-                                to customers via a no-reply email address.
+                                to customers on behalf of each registered organisation.
+
+                                ## Email Delivery (Brevo)
+
+                                All outbound email is delivered through the **Brevo transactional API** \
+                                (`POST https://api.brevo.com/v3/smtp/email`) — not SMTP.
+
+                                **Sender identity** — every invoice email is sent on behalf of the owning \
+                                organisation, for every endpoint (single send, campaigns, ERP dispatch, \
+                                PDF upload, retries, PEPPOL buyer notifications):
+
+                                | Header | Value |
+                                |---|---|
+                                | `From` | organisation `senderEmail` + `senderDisplayName` |
+                                | `Reply-To` | `replyToEmail` → else `accountsEmail` → else `senderEmail` |
+
+                                The organisation is taken from the authenticated API key, or from the \
+                                campaign's `organizationId` for asynchronous dispatch. Platform emails \
+                                (invitations, password resets, platform billing) use the platform sender.
+
+                                **Verified senders** — each organisation's `senderEmail` must be a verified \
+                                sender (or on an authenticated domain) in Brevo. Brevo accepts mail from an \
+                                unverified sender (returns a `messageId`) and then drops it.
+
+                                **Delivery status lifecycle** — a recipient is `SENT` once Brevo accepts it. \
+                                Brevo delivery events (webhook `POST /webhooks/brevo/transactional` plus a \
+                                15-minute reconciliation) later move it to `FAILED` with the Brevo reason in \
+                                `errorMessage` on a hard bounce, invalid address, block, or rejected sender, \
+                                and adjust the campaign's `sent`/`failed` counts (`COMPLETED` → \
+                                `PARTIALLY_FAILED`). Such recipients are not re-sent by the retry endpoint.
 
                                 ## Multi-ERP Integration
 
@@ -156,8 +186,10 @@ public class OpenApiConfig {
                                 .name("Organization Registry")
                                 .description("""
                                         Manage sender organizations (tenants) in the delivery network. \
-                                        Each org has its own no-reply sender identity, ERP connection, \
-                                        and billing relationship. In PEPPOL terms, these are the "senders" \
+                                        Each org has its own sender identity, ERP connection, \
+                                        and billing relationship. `senderEmail` / `senderDisplayName` become the \
+                                        email `From` (the address must be a verified Brevo sender); Reply-To is \
+                                        `replyToEmail`, else `accountsEmail`, else `senderEmail`. In PEPPOL terms, these are the "senders" \
                                         whose invoices flow through our access point."""),
                         new Tag()
                                 .name("Customer Registry")
@@ -172,6 +204,14 @@ public class OpenApiConfig {
                                         through the channel is metered. Create rate profiles with volume-based \
                                         tiers, view monthly billing summaries, audit individual usage records, \
                                         and estimate costs. Billing periods are monthly (YYYY-MM format)."""),
+                        new Tag()
+                                .name("Brevo Webhooks")
+                                .description("""
+                                        **[Mailer / PDF]** Inbound delivery events from Brevo (delivered, \
+                                        hardBounce, softBounce, blocked, invalid, deferred, spam, unsubscribed). \
+                                        Called by Brevo, not by integrators — register once per environment with \
+                                        `scripts/register-brevo-webhook.sh`. Authenticated with the shared \
+                                        `BREVO_WEBHOOK_TOKEN`."""),
                         new Tag()
                                 .name("Admin Auth")
                                 .description("Platform-admin session login / logout. Issues bearer tokens for the admin UI."),
@@ -223,7 +263,12 @@ public class OpenApiConfig {
                                 .type(SecurityScheme.Type.APIKEY)
                                 .in(SecurityScheme.In.HEADER)
                                 .name("X-API-Key")
-                                .description("Your organisation API key — issued at registration via POST /api/v1/organizations")));
+                                .description("Your organisation API key — issued at registration via POST /api/v1/organizations"))
+                        .addSecuritySchemes("BrevoWebhookToken", new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .description("Shared secret BREVO_WEBHOOK_TOKEN, sent by Brevo as "
+                                        + "`Authorization: Bearer <token>` (a `?token=` query parameter is also accepted).")));
     }
 
     // ═══════════════════════════════════════════════════════════════
