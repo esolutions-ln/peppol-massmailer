@@ -44,6 +44,12 @@ brevo() {
   out=$(curl "${args[@]}")
   status="${out##*$'\n'}"
   body="${out%$'\n'*}"
+  # Brevo answers a list request with 400 "document_not_found" when the account
+  # has no webhooks yet — that's an empty list, not an error.
+  if [ "$method" = "GET" ] && echo "$body" | grep -q '"document_not_found"'; then
+    printf '{"webhooks":[]}'
+    return 0
+  fi
   if [ "${status:0:1}" != "2" ]; then
     echo "ERROR: Brevo $method $path returned HTTP $status:" >&2
     echo "$body" >&2
