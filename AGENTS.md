@@ -78,7 +78,17 @@ PDF watcher) runs on `@Async("mailExecutor")` virtual threads, so it must pass
 Any new background send must pass the org id explicitly.
 
 Every From address (each org's `senderEmail` and `MAIL_FROM`) must be a
-**verified sender in Brevo**, or Brevo rejects the send with a 4xx.
+**verified sender or on an authenticated domain in Brevo** (Reply-To needs no
+verification). Beware: with an unverified sender Brevo still returns **2xx + a
+messageId**, then drops the mail asynchronously with an `error` event
+("sender … is not valid"). The app therefore records it as delivered — check
+`GET /v3/smtp/statistics/events?messageId=…` (or the Brevo Transactional logs)
+to confirm real delivery. Brevo also enforces an **authorised-IP allowlist**:
+the calling server's egress IP must be added under Security → Authorised IPs,
+or every API call returns `401 unauthorized`.
+
+Live smoke test (sends one real email; skipped unless `BREVO_LIVE_TEST_TO` is set):
+`BrevoLiveSendTest` — see its Javadoc for the env vars.
 
 ## Deployment
 
