@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(mvn -q *)",
+      "Bash(mvn -o *)",
+      "Bash(mvn test *)",
+      "Bash(mvn compile *)",
+      "Bash(mvn test-compile *)",
+      "Bash(mvn package *)",
+      "Bash(./mvnw *)",
+      "Bash(npm run *)",
+      "Bash(npm --prefix frontend run *)",
+      "Bash(npx tsc *)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -sS http://localhost:*)",
+      "Bash(curl -sf http://localhost:*)",
+      "Bash(curl -s -o /dev/null *http://localhost:*)",
+      "Bash(curl -sS -o /dev/null *http://localhost:*)",
+      "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(curl -sS http://127.0.0.1:*)",
+      "Bash(curl -sf http://127.0.0.1:*)",
+      "Bash(curl -s -o /dev/null *http://127.0.0.1:*)",
+      "Bash(curl -sS -o /dev/null *http://127.0.0.1:*)",
+      "Bash(docker ps *)",
+      "Bash(docker compose ps *)",
+      "Bash(docker compose logs *)",
+      "Bash(docker inspect *)",
+      "Bash(bash .claude/skills/smoke/smoke.sh *)",
+      "Bash(python3 -m json.tool)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./google-oauth-credentials.json)",
+      "Read(./**/*.key.json)",
+      "Read(./**/service-account-key.json)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-files.sh\"" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.sh\"" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/track-changes.sh\"" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/verify-on-stop.sh\"", "timeout": 600 }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          { "type": "command", "command": "osascript -e 'display notification \"Claude needs your attention\" with title \"mass-mailer\" sound name \"Glass\"' >/dev/null 2>&1 || true" }
+        ]
+      }
+    ]
+  }
+}

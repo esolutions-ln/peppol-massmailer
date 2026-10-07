@@ -18,3 +18,7 @@ service-account-key.json
 # Logs
 *.log
 backups/
+
+# Claude Code (personal settings & worktrees; .claude/settings.json is shared)
+.claude/settings.local*.json
+.claude/worktrees/
